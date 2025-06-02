@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWorkspace } from '../contexts/WorkspaceContext';
-import { LogOut, FileText, Plus, Menu, Search } from 'lucide-react';
+import { LogOut, FileText, Plus, Menu, Search, Star, Clock, Calendar, LayoutGrid, Settings, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useDebouncedCallback } from 'use-debounce';
 import TailwindAdvancedEditor from '../components/novel/advanced-editor';
@@ -18,15 +18,18 @@ const generateId = () => {
 
 const WorkspaceDashboard = () => {
   const { workspaceId } = useParams();
-  const { currentWorkspace, setCurrentWorkspace, getWorkspace, createPage } = useWorkspace();
-  const { logout } = useAuth();
-  const [pages, setPages] = useState([]);
+  const navigate = useNavigate();
+  const { currentWorkspace, setCurrentWorkspace, getWorkspace, createPage, pages, loadPages } = useWorkspace();
+  const { logout, user } = useAuth();
   const [activePage, setActivePage] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [recentPages, setRecentPages] = useState([]);
+  const [favoritePages, setFavoritePages] = useState([]);
 
+  // Effect to fetch workspace data - runs only when workspaceId changes
   useEffect(() => {
     const fetchWorkspace = async () => {
       try {
@@ -36,21 +39,11 @@ const WorkspaceDashboard = () => {
         if (workspaceId) {
           const workspace = await getWorkspace(workspaceId);
           setCurrentWorkspace(workspace);
-
-          const mockPages = [
-            { id: '1', title: 'Getting Started', updatedAt: new Date() },
-            { id: '2', title: 'Project Plan', updatedAt: new Date() },
-            { id: '3', title: 'Meeting Notes', updatedAt: new Date() },
-          ];
-          setPages(mockPages);
-
-          if (mockPages.length > 0 && !activePage) {
-            setActivePage(mockPages[0]);
-          }
+          
+          // Load pages from the workspace context
+          await loadPages(workspaceId);
         } else {
           setCurrentWorkspace(null);
-          setPages([]);
-          setActivePage(null);
         }
       } catch (err) {
         console.error("Error fetching workspace:", err);
@@ -61,7 +54,26 @@ const WorkspaceDashboard = () => {
     };
 
     fetchWorkspace();
+    // Only depend on workspaceId and the functions, not on pages which changes after loadPages
   }, [workspaceId]);
+
+  // Effect to update recent and favorite pages when pages change
+  useEffect(() => {
+    if (pages && pages.length > 0) {
+      // Sort pages by updated date for recent pages
+      const sortedPages = [...pages].sort((a, b) => {
+        return new Date(b.updatedAt) - new Date(a.updatedAt);
+      });
+      
+      setRecentPages(sortedPages.slice(0, 5));
+      
+      // Simulate some favorite pages (in a real app, this would be user-specific)
+      setFavoritePages(pages.filter((_, index) => index % 3 === 0).slice(0, 3));
+    } else {
+      setRecentPages([]);
+      setFavoritePages([]);
+    }
+  }, [pages]);
 
   const getEmptyEditorState = () => JSON.stringify({
     root: {
@@ -102,28 +114,42 @@ const WorkspaceDashboard = () => {
         updatedAt: new Date(),
       };
 
-      setPages(prev => [newPage, ...prev]);
-      setActivePage(newPage);
-      
-      // Optional: Save the page to the backend if needed
+      // Don't directly modify the pages state from context
+      // Instead, use the createPage function from context which will update the pages state
       if (createPage) {
         try {
-          await createPage({
-            workspaceId,
+          // Create the page through the context which will handle updating the pages array
+          // Pass workspaceId and data as separate parameters
+          const createdPage = await createPage(workspaceId, {
             title: 'Untitled',
             content: newPage.content,
           });
+          
+          // If successful, set the active page to the newly created page
+          if (createdPage) {
+            setActivePage(createdPage);
+          } else {
+            // Fallback if createPage doesn't return the created page
+            setActivePage(newPage);
+          }
+          
+          // Note: The toast is already handled in the context's createPage function
         } catch (err) {
           console.error('Failed to save page to backend:', err);
+          // Note: Error toast is already handled in the context's createPage function
         }
       }
     } catch (err) {
       console.error('Error creating page:', err);
+      toast.error('Error creating page');
     }
-  }, [createPage, workspaceId]);
+  }, [createPage, workspaceId, getEmptyEditorState]);
 
-  const handlePageSelect = (page) => {
-    setActivePage(page);
+  const handlePageSelect = (pageId) => {
+    if (!pages || !pageId) return;
+    
+    // Always navigate to the page view when clicking on a page from the dashboard
+    navigate(`/workspace/${workspaceId}/page/${pageId}`);
   };
 
   const debouncedSave = useDebouncedCallback(async (content) => {
@@ -194,9 +220,9 @@ const WorkspaceDashboard = () => {
     logout();
   };
 
-  const filteredPages = pages.filter(page => 
+  const filteredPages = pages ? pages.filter(page => 
     page.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ) : [];
 
   if (isLoading) {
     return (
@@ -228,149 +254,189 @@ const WorkspaceDashboard = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-white to-purple-50">
-      {/* Navigation */}
-      <header className="sticky top-0 z-20 w-full border-b bg-white/80 backdrop-blur-md">
-        <div className="container flex h-16 items-center justify-between px-4 md:px-6">
-          <div className="flex items-center space-x-4">
+    <div className="flex flex-col min-h-screen">
+      {/* Main Dashboard Content */}
+      <div className="flex-1 overflow-auto p-6">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Welcome to {currentWorkspace?.name || 'Your Workspace'}
+          </h1>
+          <p className="text-gray-600">
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} • {user?.name || 'User'}'s workspace
+          </p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <button
+            onClick={handleCreatePage}
+            className="flex items-center gap-3 p-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-lg hover:opacity-90 transition-all shadow-md"
+          >
+            <div className="p-2 bg-white/20 rounded-md">
+              <Plus size={20} className="text-white" />
+            </div>
+            <div className="text-left">
+              <h3 className="font-medium">New Page</h3>
+              <p className="text-sm text-white/80">Create a new document</p>
+            </div>
+          </button>
+
+          <button 
+            onClick={() => navigate(`/workspace/${workspaceId}/templates`)}
+            className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:opacity-90 transition-all shadow-md"
+          >
+            <div className="p-2 bg-white/20 rounded-md">
+              <LayoutGrid size={20} className="text-white" />
+            </div>
+            <div className="text-left">
+              <h3 className="font-medium">Templates</h3>
+              <p className="text-sm text-white/80">Browse document templates</p>
+            </div>
+          </button>
+
+          <button 
+            onClick={() => navigate(`/workspace/${workspaceId}/invite`)}
+            className="flex items-center gap-3 p-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg hover:opacity-90 transition-all shadow-md"
+          >
+            <div className="p-2 bg-white/20 rounded-md">
+              <UserPlus size={20} className="text-white" />
+            </div>
+            <div className="text-left">
+              <h3 className="font-medium">Invite</h3>
+              <p className="text-sm text-white/80">Invite team members</p>
+            </div>
+          </button>
+        </div>
+
+        {/* Recent Pages */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+              <Clock size={18} className="text-gray-500" />
+              Recent Pages
+            </h2>
             <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"
+              onClick={() => setSearchQuery('')}
+              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
             >
-              <Menu size={20} />
-            </button>
-            <div className="flex items-center space-x-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-purple-600">
-                <FileText className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-orange-600 to-purple-600 bg-clip-text text-transparent">
-                {currentWorkspace?.name || 'Workspace'}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-              title="Logout"
-            >
-              <LogOut size={16} className="text-gray-600" />
-              <span className="hidden sm:inline">Logout</span>
+              View all
             </button>
           </div>
-        </div>
-      </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0`}>
-          <div className="h-full flex flex-col">
-            <div className="p-4">
-              <button
-                onClick={handleCreatePage}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
-              >
-                <Plus size={16} />
-                <span>New Page</span>
-              </button>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
             </div>
-            
-            <div className="flex-1 overflow-y-auto px-2">
-              <h3 className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Pages
-              </h3>
-              <div className="space-y-1">
-                {filteredPages.map((page) => (
-                  <button
-                    key={page.id}
-                    onClick={() => handlePageSelect(page.id)}
-                    className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2 ${
-                      activePage?.id === page.id
-                        ? 'bg-orange-50 text-orange-700 font-medium'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <FileText 
-                      size={16} 
-                      className={`flex-shrink-0 ${activePage?.id === page.id ? 'text-orange-500' : 'text-gray-400'}`} 
-                    />
-                    <span className="truncate">{page.title || 'Untitled'}</span>
-                  </button>
-                ))}
-                
-                {pages.length === 0 && (
-                  <div className="px-3 py-2 text-sm text-gray-500">
-                    No pages yet. Create one!
+          ) : recentPages.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recentPages.map(page => (
+                <div 
+                  key={page.id}
+                  onClick={() => handlePageSelect(page.id)}
+                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <FileText size={16} className="text-gray-400" />
+                      <h3 className="font-medium text-gray-800 truncate">{page.title || 'Untitled'}</h3>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {new Date(page.updatedAt).toLocaleDateString()}
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="p-4 border-t border-gray-200">
-              <div className="text-xs text-gray-500 mb-2">Workspace</div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">{currentWorkspace?.name || 'My Workspace'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Main Content */}
-        <div className="flex-1 overflow-auto bg-white">
-          {activePage ? (
-            <div className="max-w-4xl mx-auto p-8">
-              <div className="w-full h-full">
-            
-                <div className="mb-8">
-                <input
-                  type="text"
-                  value={activePage.title || ''}
-                  onChange={handleTitleChange}
-                  onBlur={handleTitleBlur}
-                  onKeyDown={handleKeyDown}
-                  className="w-full text-4xl font-bold bg-transparent outline-none border-none focus:ring-0 p-0 mb-2 text-foreground"
-                  placeholder="Untitled"
-                />
-                <div className="h-px bg-border w-full"></div>
-              </div>
-              <TailwindAdvancedEditor
-                content={activePage.content}
-                onUpdate={handleEditorChange}
-              />
-              </div>
+                  <p className="text-sm text-gray-600 line-clamp-2">
+                    {page.excerpt || 'No content'}
+                  </p>
+                </div>
+              ))}
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center max-w-md p-6">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                  {pages.length === 0 ? 'Create your first page' : 'Select a page'}
-                </h2>
-                <p className="text-gray-600 mb-6">
-                  {pages.length === 0
-                    ? 'Get started by creating a new page.'
-                    : 'Select a page from the sidebar or create a new one.'}
-                </p>
-                <button
-                  onClick={handleCreatePage}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-md"
-                >
-                  <Plus size={18} />
-                  <span>New Page</span>
-                </button>
-              </div>
+            <div className="bg-gray-50 rounded-lg p-6 text-center">
+              <p className="text-gray-600 mb-4">No recent pages</p>
+              <button
+                onClick={handleCreatePage}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors text-sm font-medium"
+              >
+                <Plus size={16} />
+                <span>Create your first page</span>
+              </button>
             </div>
           )}
+        </div>
+
+        {/* Favorites */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+              <Star size={18} className="text-gray-500" />
+              Favorites
+            </h2>
+          </div>
+
+          {favoritePages.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {favoritePages.map(page => (
+                <div 
+                  key={page.id}
+                  onClick={() => handlePageSelect(page.id)}
+                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer flex items-start gap-3"
+                >
+                  <div className="p-2 bg-orange-50 rounded-md">
+                    <FileText size={16} className="text-orange-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800 mb-1">{page.title || 'Untitled'}</h3>
+                    <p className="text-xs text-gray-500">
+                      Updated {new Date(page.updatedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 rounded-lg p-6 text-center">
+              <p className="text-gray-600">No favorite pages yet</p>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Links */}
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Quick Links</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button 
+              onClick={() => navigate(`/workspace/${workspaceId}/settings`)}
+              className="flex flex-col items-center gap-2 p-4 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Settings size={20} className="text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Settings</span>
+            </button>
+            
+            <button 
+              onClick={() => navigate(`/workspace/${workspaceId}/trash`)}
+              className="flex flex-col items-center gap-2 p-4 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Trash2 size={20} className="text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Trash</span>
+            </button>
+            
+            <button 
+              onClick={() => navigate(`/workspace/${workspaceId}/templates`)}
+              className="flex flex-col items-center gap-2 p-4 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <LayoutGrid size={20} className="text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Templates</span>
+            </button>
+            
+            <button 
+              onClick={() => navigate(`/workspace/${workspaceId}/invite`)}
+              className="flex flex-col items-center gap-2 p-4 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <UserPlus size={20} className="text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Invite</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
