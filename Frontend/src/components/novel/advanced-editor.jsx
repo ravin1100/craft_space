@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   EditorCommand,
   EditorCommandEmpty,
@@ -12,6 +12,7 @@ import {
   handleImagePaste,
 } from "novel";
 import { useDebouncedCallback } from "use-debounce";
+import { useParams } from "react-router-dom";
 import { defaultExtensions } from "./extensions";
 import { ColorSelector } from "./selectors/color-selector";
 import { LinkSelector } from "./selectors/link-selector";
@@ -24,10 +25,14 @@ import { TextButtons } from "./selectors/text-buttons";
 import { slashCommand, suggestionItems } from "./slash-command";
 import hljs from "highlight.js";
 import { defaultEditorContent } from "../../lib/content";
+import SmartFeatures from "../smart/SmartFeatures";
+import AutoLinker from "../smart/AutoLinker";
+import AutoTagGenerator from "../smart/AutoTagGenerator";
+import KnowledgeGraph from "../smart/KnowledgeGraph";
 
 const extensions = [...defaultExtensions, slashCommand];
 
-export default function TailwindAdvancedEditor({ content, onUpdate }) {
+export default function TailwindAdvancedEditor({ content, onUpdate, pageId, existingTags = [] }) {
   // Initialize state with either the provided content or default content
   const [initialContent, setInitialContent] = useState(
     content ?? defaultEditorContent
@@ -41,11 +46,35 @@ export default function TailwindAdvancedEditor({ content, onUpdate }) {
   }, [content]);
   const [saveStatus, setSaveStatus] = useState("Saved");
   const [charsCount, setCharsCount] = useState(0);
+  const [editorContent, setEditorContent] = useState("");
+  const [tags, setTags] = useState(existingTags);
+  const { workspaceId } = useParams();
+  const editorRef = useRef(null);
 
   const [openNode, setOpenNode] = useState(false);
   const [openColor, setOpenColor] = useState(false);
   const [openLink, setOpenLink] = useState(false);
   const [openAI, setOpenAI] = useState(false);
+  
+  // Handle tag updates
+  const handleTagsUpdate = useCallback((newTags) => {
+    setTags(newTags);
+    // If onUpdate includes a way to update page metadata, we could call it here
+  }, []);
+  
+  // Handle link insertion
+  const handleLinkInsert = useCallback((suggestion) => {
+    if (!suggestion || !suggestion.id || !suggestion.title) return;
+    
+    // For Novel editor, we'd need to insert at cursor position
+    // This is a simplified version - in a real implementation, you'd use
+    // the Novel editor API to insert at the current cursor position
+    const linkText = `[[${suggestion.title}]]`;
+    
+    // This would need to be adapted to work with Novel's specific API
+    // For now, we'll just log it
+    console.log("Would insert link:", linkText);
+  }, []);
 
   // Apply syntax highlighting to any <pre><code> blocks in the HTML string
   const highlightCodeblocks = (htmlString) => {
@@ -74,6 +103,10 @@ export default function TailwindAdvancedEditor({ content, onUpdate }) {
         editor.storage.markdown.getMarkdown()
       );
     }
+    
+    // Extract text content for AI features
+    const textContent = editor.getText();
+    setEditorContent(textContent);
 
     setSaveStatus("Saved");
   }, 500);
@@ -84,12 +117,13 @@ export default function TailwindAdvancedEditor({ content, onUpdate }) {
   }, [content]);
 
   return (
-    <EditorRoot>
-      <EditorContent
-        initialContent={initialContent}
-        extensions={extensions}
-        className="relative min-h-[500px] w-full max-w-screen-lg sm:mb-[calc(20vh)]"
-        editorProps={{
+    <div ref={editorRef} className="relative">
+      <EditorRoot>
+        <EditorContent
+          initialContent={initialContent}
+          extensions={extensions}
+          className="relative min-h-[500px] w-full max-w-screen-lg sm:mb-[calc(20vh)]"
+          editorProps={{
           handleDOMEvents: {
             keydown: (_view, event) => handleCommandNavigation(event),
           },
@@ -153,7 +187,29 @@ export default function TailwindAdvancedEditor({ content, onUpdate }) {
           <Separator orientation="vertical" />
           <ColorSelector open={openColor} onOpenChange={setOpenColor} />
         </GenerativeMenuSwitch>
-      </EditorContent>
-    </EditorRoot>
+        </EditorContent>
+      </EditorRoot>
+      
+      {/* Smart Features Integration */}
+      {workspaceId && pageId && (
+        <SmartFeatures
+          content={editorContent}
+          pageId={pageId}
+          existingTags={tags}
+          onTagsUpdate={handleTagsUpdate}
+          onLinkInsert={handleLinkInsert}
+          editorRef={editorRef}
+        />
+      )}
+      
+      {/* Auto-Linker (always active when content changes) */}
+      {workspaceId && (
+        <AutoLinker 
+          content={editorContent} 
+          onLinkInsert={handleLinkInsert}
+          editorRef={editorRef}
+        />
+      )}
+    </div>
   );
 }

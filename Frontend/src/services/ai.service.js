@@ -25,6 +25,28 @@ class AIService {
   }
 
   /**
+   * Generate tags for a specific page
+   * @param {string} pageId - The ID of the page to generate tags for
+   * @returns {Promise<string>} - Promise with comma-separated tags
+   */
+  async generatePageTags(pageId) {
+    try {
+      // Get auth token
+      const token = localStorage.getItem('notion_token');
+      
+      const response = await api.get(`/ai/upload/${pageId}/tag`, {
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error generating tags for page:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Query the AI with a question
    * @param {string} question - The user's question
    * @returns {Promise} - Promise with the AI response

@@ -2,8 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { useDebouncedCallback } from "use-debounce";
+import { Tag, X } from "lucide-react";
 import workspaceService from "../services/workspace.service";
 import editorService from "../services/editor.service";
+import smartService from "../services/smart.service";
 import PageEditor from "../editors/PageEditor";
 import TailwindAdvancedEditor from "../components/novel/advanced-editor";
 
@@ -12,6 +14,7 @@ export default function PageView() {
   const [page, setPage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [tags, setTags] = useState([]);
 
   console.log(page, "page");
 
@@ -30,6 +33,12 @@ export default function PageView() {
           ...pageData,
           content: JSON.parse(pageData?.content ?? null),
         });
+        
+        // Set tags if available
+        if (pageData?.tags && Array.isArray(pageData.tags)) {
+          setTags(pageData.tags);
+        }
+        
         setError(null);
       } catch (err) {
         setError("Failed to load page");
@@ -86,6 +95,30 @@ export default function PageView() {
     }
   }, 5000);
 
+  // Handle tag updates
+  const handleTagsUpdate = useCallback(async (newTags) => {
+    try {
+      setTags(newTags);
+      await smartService.updatePageTags(workspaceId, pageId, newTags);
+    } catch (error) {
+      console.error('Error updating tags:', error);
+      toast.error('Failed to update tags');
+    }
+  }, [workspaceId, pageId]);
+  
+  // Remove a tag
+  const removeTag = async (tagToRemove) => {
+    try {
+      const newTags = tags.filter(tag => tag !== tagToRemove);
+      setTags(newTags);
+      await smartService.updatePageTags(workspaceId, pageId, newTags);
+      toast.success('Tag removed');
+    } catch (error) {
+      console.error('Error removing tag:', error);
+      toast.error('Failed to remove tag');
+    }
+  };
+
   const handleSave = useCallback(
     (content) => {
       setPage((prev) => ({
@@ -124,11 +157,36 @@ export default function PageView() {
           className="w-full text-4xl font-bold bg-transparent outline-none border-none focus:ring-0 p-0 mb-2 text-foreground"
           placeholder="Untitled"
         />
+        
+        {/* Tags display */}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {tags.map((tag, index) => (
+              <span 
+                key={index} 
+                className="inline-flex items-center bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full"
+              >
+                <Tag size={12} className="mr-1 text-gray-500" />
+                {tag}
+                <button 
+                  onClick={() => removeTag(tag)} 
+                  className="ml-1 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        
         <div className="h-px bg-border w-full"></div>
       </div>
       <TailwindAdvancedEditor
         content={page?.content ?? null}
         onUpdate={handleSave}
+        pageId={pageId}
+        existingTags={tags}
+        onTagsUpdate={handleTagsUpdate}
       />
     </div>
   );

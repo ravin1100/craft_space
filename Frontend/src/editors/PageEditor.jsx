@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
@@ -12,16 +12,19 @@ import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { TRANSFORMERS } from "@lexical/markdown";
-import { $insertNodes } from "lexical";
+import { $insertNodes, $createTextNode } from "lexical";
 import { toast } from "react-hot-toast";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import editorService from "../services/editor.service";
+import smartService from "../services/smart.service";
 import PageSettings from "../components/page/PageSettings";
+import SmartFeatures from "../components/smart/SmartFeatures";
 import ToolbarPlugin from "./plugins/ToolbarPlugin";
 import AutoSavePlugin from "./plugins/AutoSavePlugin";
 import CodeHighlightPlugin from "./plugins/CodeHighlightPlugin";
 import ListPlugin from "./plugins/ListPlugin";
 import ImagePlugin from "./plugins/ImagePlugin";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
 const editorConfig = {
   namespace: "NotionEditor",
@@ -56,6 +59,28 @@ const editorConfig = {
   },
 };
 
+// Custom plugin to get editor content for AI features
+function EditorContentPlugin({ onContentChange }) {
+  const [editor] = useLexicalComposerContext();
+  
+  useEffect(() => {
+    const removeListener = editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(() => {
+        const textContent = editor.getEditorState().read(() => {
+          return editor.getRootElement()?.textContent || "";
+        });
+        onContentChange(textContent);
+      });
+    });
+    
+    return () => {
+      removeListener();
+    };
+  }, [editor, onContentChange]);
+  
+  return null;
+}
+
 export default function PageEditor({
   workspaceId,
   pageId,
@@ -65,6 +90,9 @@ export default function PageEditor({
   const [title, setTitle] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [metadata, setMetadata] = useState({});
+  const [editorContent, setEditorContent] = useState("");
+  const [tags, setTags] = useState([]);
+  const editorRef = useRef(null);
   const { updatePage, deletePage, duplicatePage } = useWorkspace();
   const navigate = useNavigate();
 
@@ -72,6 +100,7 @@ export default function PageEditor({
     if (initialContent) {
       setTitle(initialContent.title || "");
       setMetadata(initialContent.metadata || {});
+      setTags(initialContent.tags || []);
     }
   }, [initialContent]);
 
@@ -119,6 +148,41 @@ export default function PageEditor({
       toast.error("Failed to update page");
     }
   };
+  
+  // Handle content change for AI features
+  const handleContentChange = useCallback((content) => {
+    setEditorContent(content);
+  }, []);
+  
+  // Handle tag updates
+  const handleTagsUpdate = useCallback((newTags) => {
+    setTags(newTags);
+    handlePageUpdate({ tags: newTags });
+  }, [workspaceId, pageId]);
+  
+  // Handle link insertion
+  const handleLinkInsert = useCallback((suggestion) => {
+    if (!suggestion || !suggestion.id || !suggestion.title) return;
+    
+    // Get the current editor instance
+    const editorElement = document.querySelector('[contenteditable=true]');
+    if (!editorElement) return;
+    
+    // Focus the editor
+    editorElement.focus();
+    
+    // Insert the link text
+    const linkText = `[[${suggestion.title}]]`;
+    
+    // Use Lexical API to insert the link
+    const editor = editorElement._lexicalEditor;
+    if (editor) {
+      editor.update(() => {
+        const linkNode = $createTextNode(linkText);
+        $insertNodes([linkNode]);
+      });
+    }
+  }, []);
 
   const handlePageDelete = async () => {
     try {
@@ -177,7 +241,7 @@ export default function PageEditor({
         {/* Lexical Editor */}
         <div className="prose prose-sm max-w-none">
           <LexicalComposer initialConfig={editorConfig}>
-            <div className="relative min-h-[500px] border border-border rounded-lg">
+            <div className="relative min-h-[500px] border border-border rounded-lg" ref={editorRef}>
               <ToolbarPlugin />
               <div className="p-4">
                 <RichTextPlugin
@@ -201,10 +265,21 @@ export default function PageEditor({
                   pageId={pageId}
                   onSave={handleSave}
                 />
+                <EditorContentPlugin onContentChange={handleContentChange} />
               </div>
             </div>
           </LexicalComposer>
         </div>
+        
+        {/* Smart Features Integration */}
+        <SmartFeatures
+          content={editorContent}
+          pageId={pageId}
+          existingTags={tags}
+          onTagsUpdate={handleTagsUpdate}
+          onLinkInsert={handleLinkInsert}
+          editorRef={editorRef}
+        />
       </div>
     </div>
   );
