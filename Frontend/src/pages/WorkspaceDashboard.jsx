@@ -1,12 +1,13 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWorkspace } from '../contexts/WorkspaceContext';
-import { LogOut, FileText, Plus, Menu, Search, Star, Clock, Calendar, LayoutGrid, Settings, Trash2, UserPlus } from 'lucide-react';
+import { LogOut, FileText, Plus, Menu, Search, Star, Clock, Calendar, LayoutGrid, Settings, Trash2, UserPlus, Bot, Upload, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useDebouncedCallback } from 'use-debounce';
 import TailwindAdvancedEditor from '../components/novel/advanced-editor';
 import workspaceService from '../services/workspace.service';
+import aiService from '../services/ai.service';
 // Simple ID generator
 const generateId = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -28,6 +29,13 @@ const WorkspaceDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [recentPages, setRecentPages] = useState([]);
   const [favoritePages, setFavoritePages] = useState([]);
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [userQuestion, setUserQuestion] = useState('');
+  const [hasUploadedFiles, setHasUploadedFiles] = useState(false);
+  const fileInputRef = useRef(null);
+  const chatContainerRef = useRef(null);
 
   // Effect to fetch workspace data - runs only when workspaceId changes
   useEffect(() => {
@@ -210,27 +218,190 @@ const WorkspaceDashboard = () => {
     }
   };
 
-  useEffect(() => {
-    return () => {
-      debouncedSave.flush();
-    };
-  }, [debouncedSave]);
-
-  const handleLogout = () => {
-    logout();
+  const handleAiAssistantToggle = async () => {
+    // If opening the assistant, automatically call uploadFiles with empty body
+    if (!isAiAssistantOpen) {
+      try {
+        setIsAiLoading(true);
+        // Call uploadFiles with empty FormData
+        const formData = new FormData();
+        await aiService.uploadFiles(formData);
+        // Set hasUploadedFiles to true to skip the upload screen
+        setHasUploadedFiles(true);
+        setUserQuestion('');
+        
+        // Add welcome message
+        setChatMessages([
+          {
+            role: 'assistant',
+            content: 'Hello! I\'m your AI assistant. How can I help you today?',
+            timestamp: new Date()
+          }
+        ]);
+      } catch (error) {
+        console.error('Error initializing AI assistant:', error);
+        toast.error('Failed to initialize AI assistant');
+      } finally {
+        setIsAiLoading(false);
+      }
+    }
+    
+    setIsAiAssistantOpen(!isAiAssistantOpen);
   };
 
-  const filteredPages = pages ? pages.filter(page => 
-    page.title.toLowerCase().includes(searchQuery.toLowerCase())
-  ) : [];
+  const handleFileUpload = async (event) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
-      </div>
-    );
-  }
+    try {
+      setIsAiLoading(true);
+      const formData = new FormData();
+      
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+
+      await aiService.uploadFiles(formData);
+      setHasUploadedFiles(true);
+      toast.success('Files uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      toast.error('Failed to upload files');
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleAiQuery = async (e) => {
+    e.preventDefault();
+    if (!userQuestion.trim()) return;
+
+    // Add user message to chat
+    const userMessage = {
+      role: 'user',
+      content: userQuestion,
+      timestamp: new Date()
+    };
+    
+    setChatMessages(prevMessages => [...prevMessages, userMessage]);
+    setUserQuestion('');
+    
+    try {
+      setIsAiLoading(true);
+      
+      // Add a temporary thinking message
+      setChatMessages(prevMessages => [
+        ...prevMessages,
+        {
+          role: 'assistant',
+          content: '...',
+          isThinking: true,
+          timestamp: new Date()
+        }
+      ]);
+      
+      const response = await aiService.query(userQuestion);
+      
+      // Replace thinking message with actual response
+      setChatMessages(prevMessages => {
+        const newMessages = [...prevMessages];
+        const thinkingIndex = newMessages.findIndex(msg => msg.isThinking);
+        
+        if (thinkingIndex !== -1) {
+          newMessages[thinkingIndex] = {
+            role: 'assistant',
+            content: response || 'Sorry, I couldn\'t process your question.',
+            timestamp: new Date()
+          };
+        }
+        
+        return newMessages;
+      });
+    } catch (error) {
+      console.error('Error querying AI:', error);
+      
+      // Replace thinking message with error message
+      setChatMessages(prevMessages => {
+        const newMessages = [...prevMessages];
+        const thinkingIndex = newMessages.findIndex(msg => msg.isThinking);
+        
+        if (thinkingIndex !== -1) {
+          newMessages[thinkingIndex] = {
+            role: 'assistant',
+            content: 'Sorry, an error occurred while processing your question.',
+            timestamp: new Date(),
+            isError: true
+          };
+        }
+        
+        return newMessages;
+      });
+      
+      toast.error('Failed to get AI response');
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      // Cleanup function
+      if (debouncedSave) {
+        debouncedSave.flush();
+      }
+    };
+  }, []);
+  
+  // Scroll to bottom of chat when messages change
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
+  useEffect(() => {
+    const fetchWorkspace = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        if (workspaceId) {
+          const workspace = await getWorkspace(workspaceId);
+          setCurrentWorkspace(workspace);
+          
+          // Load pages from the workspace context
+          await loadPages(workspaceId);
+        } else {
+          setCurrentWorkspace(null);
+        }
+      } catch (err) {
+        console.error("Error fetching workspace:", err);
+        setError("Failed to load workspace");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchWorkspace();
+    // Only depend on workspaceId and the functions, not on pages which changes after loadPages
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (pages && pages.length > 0) {
+      // Sort pages by updated date for recent pages
+      const sortedPages = [...pages].sort((a, b) => {
+        return new Date(b.updatedAt) - new Date(a.updatedAt);
+      });
+      
+      setRecentPages(sortedPages.slice(0, 5));
+      
+      // Simulate some favorite pages (in a real app, this would be user-specific)
+      setFavoritePages(pages.filter((_, index) => index % 3 === 0).slice(0, 3));
+    } else {
+      setRecentPages([]);
+      setFavoritePages([]);
+    }
+  }, [pages]);
 
   if (error) {
     return (
@@ -242,8 +413,8 @@ const WorkspaceDashboard = () => {
 
   if (!workspaceId) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center p-8">
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center">
           <h2 className="text-2xl font-semibold mb-2">Select a workspace</h2>
           <p className="text-muted-foreground">
             Choose a workspace from the sidebar to get started
@@ -253,6 +424,18 @@ const WorkspaceDashboard = () => {
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
+  
+  const filteredPages = pages ? pages.filter(page => 
+    page.title.toLowerCase().includes(searchQuery.toLowerCase())
+  ) : [];
+  
   return (
     <div className="flex flex-col min-h-screen">
       {/* Main Dashboard Content */}
@@ -404,7 +587,14 @@ const WorkspaceDashboard = () => {
         {/* Quick Links */}
         <div>
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Quick Links</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <button 
+              onClick={handleAiAssistantToggle}
+              className="flex flex-col items-center gap-2 p-4 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Bot size={20} className="text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">AI Assistant</span>
+            </button>
             <button 
               onClick={() => navigate(`/workspace/${workspaceId}/settings`)}
               className="flex flex-col items-center gap-2 p-4 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -438,6 +628,107 @@ const WorkspaceDashboard = () => {
             </button>
           </div>
         </div>
+
+        {/* AI Assistant Modal */}
+        {isAiAssistantOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl h-[80vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                  <Bot size={18} className="text-orange-500" />
+                  AI Assistant
+                </h3>
+                <button 
+                  onClick={handleAiAssistantToggle}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              
+              {/* Chat messages container */}
+              <div 
+                ref={chatContainerRef}
+                className="flex-1 overflow-y-auto py-4 px-6 bg-gray-50"
+              >
+                {chatMessages.map((message, index) => (
+                  <div 
+                    key={index} 
+                    className={`mb-4 ${message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}
+                  >
+                    <div 
+                      className={`max-w-[80%] rounded-lg p-3 ${message.role === 'user' 
+                        ? 'bg-orange-500 text-white' 
+                        : message.isError 
+                          ? 'bg-red-50 text-red-800 border border-red-200' 
+                          : 'bg-white text-gray-800 border border-gray-200 shadow-sm'}`}
+                    >
+                      {message.isThinking ? (
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 bg-gray-400 rounded-full animate-pulse"></div>
+                          <div className="h-2 w-2 bg-gray-400 rounded-full animate-pulse delay-150"></div>
+                          <div className="h-2 w-2 bg-gray-400 rounded-full animate-pulse delay-300"></div>
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap">{message.content}</div>
+                      )}
+                      <div className="text-xs mt-1 opacity-70 text-right">
+                        {message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Loading indicator when the chat is empty */}
+                {chatMessages.length === 0 && isAiLoading && (
+                  <div className="flex justify-center items-center h-full">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+                  </div>
+                )}
+                
+                {/* Empty state */}
+                {chatMessages.length === 0 && !isAiLoading && (
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <Bot size={48} className="text-orange-500 mb-4" />
+                    <h4 className="text-xl font-medium text-gray-800 mb-2">How can I help you today?</h4>
+                    <p className="text-gray-600 max-w-md">Ask me anything about your documents or any other questions you might have.</p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Input area */}
+              <div className="border-t border-gray-200 p-4 bg-white">
+                <form onSubmit={handleAiQuery} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={userQuestion}
+                    onChange={(e) => setUserQuestion(e.target.value)}
+                    placeholder="Type your message here..."
+                    className="flex-1 border border-gray-300 rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    disabled={isAiLoading && !chatMessages.some(m => m.isThinking)}
+                  />
+                  <button
+                    type="submit"
+                    className={`p-3 rounded-full ${userQuestion.trim() ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                    disabled={!userQuestion.trim() || (isAiLoading && !chatMessages.some(m => m.isThinking))}
+                  >
+                    {isAiLoading && !chatMessages.some(m => m.isThinking) ? (
+                      <div className="h-5 w-5 border-t-2 border-r-2 border-white rounded-full animate-spin" />
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                      </svg>
+                    )}
+                  </button>
+                </form>
+                <div className="text-xs text-gray-500 mt-2 text-center">
+                  AI responses are generated based on your documents and may not always be accurate.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
