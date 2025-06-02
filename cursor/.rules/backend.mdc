@@ -1,0 +1,1636 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# CraftSpace Backend Complete Specification
+
+## 1. Project Overview and Architecture
+
+### 1.1 Technology Stack (Exact Versions)
+- **Java**: Version 17 or higher (LTS)
+- **Spring Boot**: Version 3.2.0 or latest 3.x
+- **Spring Data JPA**: Version 3.2.0 (included with Spring Boot)
+- **Spring Security**: Version 6.2.0 (included with Spring Boot)
+- **PostgreSQL**: Version 15 or higher
+- **PostgreSQL JDBC Driver**: Version 42.7.0 or latest
+- **JWT Library**: `io.jsonwebtoken:jjwt-api:0.12.3`, `io.jsonwebtoken:jjwt-impl:0.12.3`, `io.jsonwebtoken:jjwt-jackson:0.12.3`
+- **Build Tool**: Maven (preferred) or Gradle
+- **Email**: Spring Boot Starter Mail
+- **Password Hashing**: BCryptPasswordEncoder (Spring Security default)
+- **Lombok**: Version 1.18.30 (optional but recommended)
+- **Jackson**: Included with Spring Boot for JSON serialization
+
+### 1.2 Project Structure
+```
+src/main/java/com/notus/
+├── CraftSpaceApplication.java (Main Spring Boot application class)
+├── config/
+│   ├── SecurityConfig.java
+│   ├── JwtConfig.java
+│   └── EmailConfig.java
+├── controller/
+│   ├── AuthController.java
+│   ├── WorkspaceController.java
+│   └── PageController.java
+├── service/
+│   ├── AuthService.java
+│   ├── WorkspaceService.java
+│   ├── PageService.java
+│   └── EmailService.java
+├── repository/
+│   ├── UserRepository.java
+│   ├── WorkspaceRepository.java
+│   ├── PageRepository.java
+│   └── OtpVerificationRepository.java
+├── entity/
+│   ├── User.java
+│   ├── Workspace.java
+│   ├── Page.java
+│   └── OtpVerification.java
+├── dto/
+│   ├── request/ (All request DTOs)
+│   └── response/ (All response DTOs)
+├── exception/
+│   ├── GlobalExceptionHandler.java
+│   └── CustomExceptions.java
+└── util/
+    ├── JwtUtil.java
+    └── OtpUtil.java
+```
+
+---
+
+## 2. Database Schema Definition
+
+### 2.1 PostgreSQL Database Configuration
+- **Database Name**: `craft_space`
+- **Default Port**: 5432
+- **Connection Pool**: HikariCP (Spring Boot default)
+
+### 2.2 Table Definitions
+
+#### 2.2.1 users Table
+```sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    is_email_verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_email_verified ON users(is_email_verified);
+```
+
+#### 2.2.2 workspaces Table
+```sql
+CREATE TABLE workspaces (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_workspaces_user_id ON workspaces(user_id);
+CREATE INDEX idx_workspaces_user_id_not_deleted ON workspaces(user_id, is_deleted);
+```
+
+#### 2.2.3 pages Table
+```sql
+CREATE TABLE pages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    parent_page_id UUID REFERENCES pages(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_pages_workspace_id ON pages(workspace_id);
+CREATE INDEX idx_pages_parent_page_id ON pages(parent_page_id);
+CREATE INDEX idx_pages_workspace_not_deleted ON pages(workspace_id, is_deleted);
+```
+
+#### 2.2.4 otp_verifications Table
+```sql
+CREATE TABLE otp_verifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    otp_code VARCHAR(6) NOT NULL,
+    expiry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_otp_user_id ON otp_verifications(user_id);
+CREATE INDEX idx_otp_expiry ON otp_verifications(expiry_timestamp);
+```
+
+---
+
+## 3. Entity Definitions and Relationships
+
+### 3.1 User Entity Requirements
+- **Primary Key**: UUID string
+- **Email**: Unique, case-insensitive, validated format
+- **Password**: BCrypt hashed, minimum 60 characters storage
+- **Email Verification**: Boolean flag, defaults to false
+- **Timestamps**: Created and updated timestamps in UTC
+- **Relationships**: One-to-many with Workspaces, One-to-one with OtpVerification
+
+### 3.2 Workspace Entity Requirements
+- **Primary Key**: UUID string
+- **User Reference**: Foreign key to User, cascade delete
+- **Name**: Non-empty string, max 255 characters
+- **Soft Delete**: Boolean flag for logical deletion
+- **Business Rule**: Maximum 5 workspaces per user (active only)
+- **Timestamps**: Created and updated timestamps in UTC
+
+### 3.3 Page Entity Requirements
+- **Primary Key**: UUID string
+- **Workspace Reference**: Foreign key to Workspace, cascade delete
+- **Parent Page Reference**: Self-referencing foreign key, nullable for root pages
+- **Title**: Non-empty text, unlimited length
+- **Content**: JSON string representing Lexical editor state
+- **Soft Delete**: Boolean flag for logical deletion
+- **Hierarchy**: Supports unlimited nesting depth
+- **Timestamps**: Created and updated timestamps in UTC
+
+### 3.4 OtpVerification Entity Requirements
+- **Primary Key**: UUID string
+- **User Reference**: Unique foreign key to User, cascade delete
+- **OTP Code**: Exactly 6 numeric digits
+- **Expiry**: Timestamp exactly 10 minutes from creation
+- **Constraint**: One active OTP per user maximum
+
+---
+
+## 4. REST API Specification
+
+### 4.1 Authentication Endpoints
+
+#### 4.1.1 POST /api/auth/signup
+**Purpose**: Register new user and send OTP email
+
+**Request Headers**:
+- `Content-Type: application/json`
+
+**Request Body**:
+```json
+{
+    "email": "user@example.com",
+    "password": "plainTextPassword123"
+}
+```
+
+**Request Validation Rules**:
+- Email: Valid email format, not null, not blank
+- Password: Minimum 8 characters, not null, not blank
+
+**Response Success (201 Created)**:
+```json
+{
+    "message": "Signup successful. Please check your email for OTP verification.",
+    "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+**Response Errors**:
+- 400 Bad Request: Invalid email format or password too short
+- 409 Conflict: Email already exists
+- 500 Internal Server Error: Email sending failure
+
+**Business Logic**:
+1. Validate email format and password length
+2. Check if email already exists (return 409 if exists)
+3. Hash password using BCrypt with strength 12
+4. Create User entity with is_email_verified = false
+5. Generate 6-digit numeric OTP
+6. Store OTP with 10-minute expiry
+7. Send OTP email
+8. Return success response (do not reveal if user exists)
+
+#### 4.1.2 POST /api/auth/verify-otp
+**Purpose**: Verify OTP and activate account
+
+**Request Headers**:
+- `Content-Type: application/json`
+
+**Request Body**:
+```json
+{
+    "email": "user@example.com",
+    "otpCode": "123456"
+}
+```
+
+**Request Validation Rules**:
+- Email: Valid email format, not null
+- OtpCode: Exactly 6 digits, not null
+
+**Response Success (200 OK)**:
+```json
+{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiresAt": "2024-01-16T10:30:00Z",
+    "user": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "email": "user@example.com",
+        "emailVerified": true
+    }
+}
+```
+
+**Response Errors**:
+- 400 Bad Request: Invalid OTP code or expired OTP
+- 404 Not Found: User not found
+- 500 Internal Server Error: Token generation failure
+
+**Business Logic**:
+1. Find user by email
+2. Validate OTP exists and not expired
+3. Compare OTP codes (exact match)
+4. Set user.is_email_verified = true
+5. Delete OTP record
+6. Generate JWT token with 24-hour expiry
+7. Return token and user details
+
+#### 4.1.3 POST /api/auth/login
+**Purpose**: Authenticate existing user
+
+**Request Headers**:
+- `Content-Type: application/json`
+
+**Request Body**:
+```json
+{
+    "email": "user@example.com",
+    "password": "plainTextPassword123"
+}
+```
+
+**Request Validation Rules**:
+- Email: Valid email format, not null
+- Password: Not null, not blank
+
+**Response Success (200 OK)**:
+```json
+{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiresAt": "2024-01-16T10:30:00Z",
+    "user": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "email": "user@example.com",
+        "emailVerified": true
+    }
+}
+```
+
+**Response Errors**:
+- 401 Unauthorized: Invalid credentials or email not verified
+- 404 Not Found: User not found
+
+**Business Logic**:
+1. Find user by email
+2. Check if user exists
+3. Verify password using BCrypt
+4. Check if email is verified
+5. Generate JWT token with 24-hour expiry
+6. Return token and user details
+
+### 4.2 Workspace Management Endpoints
+
+#### 4.2.1 POST /api/workspaces
+**Purpose**: Create new workspace
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+- `Content-Type: application/json`
+
+**Request Body**:
+```json
+{
+    "name": "My New Workspace"
+}
+```
+
+**Request Validation Rules**:
+- Name: Not null, not blank, max 255 characters
+
+**Response Success (201 Created)**:
+```json
+{
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "name": "My New Workspace",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+**Response Errors**:
+- 400 Bad Request: User already has 5 workspaces or invalid name
+- 401 Unauthorized: Invalid or missing JWT token
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Count user's active workspaces (is_deleted = false)
+3. Reject if count >= 5
+4. Create new workspace
+5. Return workspace details
+
+#### 4.2.2 GET /api/workspaces
+**Purpose**: Get all user's workspaces
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+
+**Response Success (200 OK)**:
+```json
+[
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440001",
+        "name": "Workspace 1",
+        "createdAt": "2024-01-15T10:30:00Z",
+        "updatedAt": "2024-01-15T10:30:00Z"
+    },
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440002",
+        "name": "Workspace 2",
+        "createdAt": "2024-01-15T11:00:00Z",
+        "updatedAt": "2024-01-15T11:00:00Z"
+    }
+]
+```
+
+**Response Errors**:
+- 401 Unauthorized: Invalid or missing JWT token
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Find all workspaces where user_id = user.id AND is_deleted = false
+3. Return workspace list
+
+#### 4.2.3 DELETE /api/workspaces/{workspaceId}
+**Purpose**: Soft delete workspace
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+
+**Path Parameters**:
+- `workspaceId`: UUID string
+
+**Response Success (204 No Content)**:
+- Empty response body
+
+**Response Errors**:
+- 401 Unauthorized: Invalid or missing JWT token
+- 404 Not Found: Workspace not found or not owned by user
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Find workspace by ID and user_id
+3. Set is_deleted = true
+4. Update updated_at timestamp
+5. Return 204 status
+
+### 4.3 Page Management Endpoints
+
+#### 4.3.1 POST /api/pages
+**Purpose**: Create new page
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+- `Content-Type: application/json`
+
+**Request Body**:
+```json
+{
+    "workspaceId": "550e8400-e29b-41d4-a716-446655440001",
+    "parentPageId": "550e8400-e29b-41d4-a716-446655440003",
+    "title": "My New Page",
+    "content": "{\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Hello World\",\"type\":\"text\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}"
+}
+```
+
+**Request Validation Rules**:
+- WorkspaceId: Valid UUID, not null
+- ParentPageId: Valid UUID or null
+- Title: Not null, not blank
+- Content: Valid JSON string, not null
+
+**Response Success (201 Created)**:
+```json
+{
+    "id": "550e8400-e29b-41d4-a716-446655440004",
+    "workspaceId": "550e8400-e29b-41d4-a716-446655440001",
+    "parentPageId": "550e8400-e29b-41d4-a716-446655440003",
+    "title": "My New Page",
+    "content": "{\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Hello World\",\"type\":\"text\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+**Response Errors**:
+- 400 Bad Request: Invalid workspace ID or parent page ID
+- 401 Unauthorized: Invalid or missing JWT token
+- 404 Not Found: Workspace not found or not owned by user
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Verify workspace exists and belongs to user
+3. If parentPageId provided, verify it exists in same workspace
+4. Create new page
+5. Return page details
+
+#### 4.3.2 PUT /api/pages/{pageId}
+**Purpose**: Update existing page
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+- `Content-Type: application/json`
+
+**Path Parameters**:
+- `pageId`: UUID string
+
+**Request Body**:
+```json
+{
+    "title": "Updated Page Title",
+    "content": "{\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Updated content\",\"type\":\"text\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}"
+}
+```
+
+**Request Validation Rules**:
+- Title: Optional, if provided must not be blank
+- Content: Optional, if provided must be valid JSON string
+
+**Response Success (200 OK)**:
+```json
+{
+    "id": "550e8400-e29b-41d4-a716-446655440004",
+    "workspaceId": "550e8400-e29b-41d4-a716-446655440001",
+    "parentPageId": "550e8400-e29b-41d4-a716-446655440003",
+    "title": "Updated Page Title",
+    "content": "{\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Updated content\",\"type\":\"text\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T12:00:00Z"
+}
+```
+
+**Response Errors**:
+- 401 Unauthorized: Invalid or missing JWT token
+- 404 Not Found: Page not found or not owned by user
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Find page and verify it belongs to user's workspace
+3. Update only provided fields (title and/or content)
+4. Update updated_at timestamp
+5. Return updated page details
+
+#### 4.3.3 GET /api/workspaces/{workspaceId}/pages
+**Purpose**: Get all pages in workspace
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+
+**Path Parameters**:
+- `workspaceId`: UUID string
+
+**Response Success (200 OK)**:
+```json
+[
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440004",
+        "parentPageId": null,
+        "title": "Root Page",
+        "content": "{\"root\":{\"children\":[],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}",
+        "createdAt": "2024-01-15T10:30:00Z",
+        "updatedAt": "2024-01-15T10:30:00Z"
+    },
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440005",
+        "parentPageId": "550e8400-e29b-41d4-a716-446655440004",
+        "title": "Child Page",
+        "content": "{\"root\":{\"children\":[],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}",
+        "createdAt": "2024-01-15T11:00:00Z",
+        "updatedAt": "2024-01-15T11:00:00Z"
+    }
+]
+```
+
+**Response Errors**:
+- 401 Unauthorized: Invalid or missing JWT token
+- 404 Not Found: Workspace not found or not owned by user
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Verify workspace exists and belongs to user
+3. Find all pages where workspace_id = workspaceId AND is_deleted = false
+4. Return pages as flat list (not hierarchical)
+
+#### 4.3.4 DELETE /api/pages/{pageId}
+**Purpose**: Soft delete page
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+
+**Path Parameters**:
+- `pageId`: UUID string
+
+**Response Success (204 No Content)**:
+- Empty response body
+
+**Response Errors**:
+- 401 Unauthorized: Invalid or missing JWT token
+- 404 Not Found: Page not found or not owned by user
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Find page and verify it belongs to user's workspace
+3. Set is_deleted = true
+4. Update updated_at timestamp
+5. Return 204 status
+
+---
+
+## 5. Security Implementation Details
+
+### 5.1 JWT Token Configuration
+- **Algorithm**: HS256 (HMAC with SHA-256)
+- **Secret Key**: Minimum 256-bit random string (stored in environment variable)
+- **Token Expiry**: Exactly 24 hours from generation
+- **Claims**: user_id (UUID), email, issued_at, expires_at
+- **Header Format**: `Authorization: Bearer <token>`
+
+### 5.2 Password Security
+- **Hashing Algorithm**: BCrypt
+- **Storage**: Hash stored in password field (VARCHAR 255)
+
+### 5.3 CORS Configuration
+- **Allowed Origins**: Configure for frontend URL (localhost for development)
+- **Allowed Methods**: GET, POST, PUT, DELETE, OPTIONS
+- **Allowed Headers**: Authorization, Content-Type
+
+---
+
+## 6. Email Service Configuration
+
+### 6.1 SMTP Configuration
+- **Provider**: Gmail SMTP (or configurable)
+- **Host**: smtp.gmail.com
+- **Port**: 587 (TLS)
+- **Authentication**: Username/password via application properties
+- **TLS**: Enabled
+
+### 6.2 OTP Email Template
+- **Subject**: "Notus - Email Verification Code"
+- **Content**: Plain text with 6-digit code
+- **Sender**: noreply@notus.com (configurable)
+- **Template**: "Your verification code is: {OTP_CODE}. This code will expire in 10 minutes."
+
+### 6.3 OTP Generation Rules
+- **Format**: Exactly 6 numeric digits
+- **Range**: 100000 to 999999
+- **Expiry**: Exactly 10 minutes from creation timestamp
+- **Storage**: Store code, user_id, and expiry timestamp
+
+---
+
+## 7. File Upload Handling
+
+### 7.1 Supported File Types
+- **Images**: .jpg, .jpeg, .png, .webp
+- **Documents**: .pdf
+- **MIME Type Validation**: Verify actual file content matches extension
+- **Size Limit**: No backend size limit (frontend handles size validation)
+
+### 7.2 File Storage Strategy
+- **Storage Location**: `/uploads/` directory relative to application root
+- **Directory Structure**: `/uploads/{user_id}/{workspace_id}/`
+- **File Naming**: Original filename with UUID prefix to avoid conflicts
+- **Path Format**: `{user_id}/{workspace_id}/{uuid}_{original_filename}`
+
+### 7.3 File Upload Endpoint
+- **Endpoint**: POST /api/files/upload
+- **Authentication**: Required (JWT Bearer token)
+- **Request**: Multipart form data with file
+- **Response**: File URL or path for embedding in page content
+- **Validation**: File type, file size (if configured), virus scanning (optional)
+
+---
+
+## 8. Error Handling and Responses
+
+### 8.1 Global Exception Handler
+- **Implementation**: @ControllerAdvice class
+- **Exception Types**: ValidationException, AuthenticationException, AuthorizationException, ResourceNotFoundException, InternalServerException
+- **Response Format**: Consistent JSON error structure
+
+### 8.2 Error Response Format
+```json
+{
+    "timestamp": "2024-01-15T10:30:00Z",
+    "status": 400,
+    "error": "Bad Request",
+    "message": "Detailed error description",
+    "path": "/api/auth/signup",
+    "details": {
+        "field": "email",
+        "rejectedValue": "invalid-email",
+        "message": "Invalid email format"
+    }
+}
+```
+
+### 8.3 HTTP Status Code Mapping
+- **200 OK**: Successful GET, PUT requests
+- **201 Created**: Successful resource creation (POST)
+- **204 No Content**: Successful DELETE requests
+- **400 Bad Request**: Validation failures, malformed requests
+- **401 Unauthorized**: Authentication failures, invalid tokens
+- **403 Forbidden**: Authorization failures, insufficient permissions
+- **404 Not Found**: Resource not found or unauthorized access
+- **409 Conflict**: Resource already exists (duplicate email)
+- **422 Unprocessable Entity**: Business rule violations
+- **500 Internal Server Error**: Unexpected server errors
+
+---
+
+## 9. Database Connection and Configuration
+
+### 9.2 JPA Configuration
+- **Hibernate DDL**: update
+- **Show SQL**: false (production), true (development)
+- **Naming Strategy**: SpringPhysicalNamingStrategy (snake_case)
+
+---
+
+## 10. Application Properties Configuration
+
+### 10.1 Required Environment Variables
+```properties
+# Database Configuration
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/notus_db
+SPRING_DATASOURCE_USERNAME=notus_user
+SPRING_DATASOURCE_PASSWORD=secure_password
+
+# JWT Configuration
+JWT_SECRET_KEY=your_256_bit_secret_key_here
+JWT_EXPIRY_HOURS=24
+
+# Email Configuration
+SPRING_MAIL_HOST=smtp.gmail.com
+SPRING_MAIL_PORT=587
+SPRING_MAIL_USERNAME=your_email@gmail.com
+SPRING_MAIL_PASSWORD=your_app_password
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true
+
+# File Upload Configuration
+FILE_UPLOAD_DIRECTORY=/uploads/
+MAX_FILE_SIZE=10MB
+MAX_REQUEST_SIZE=10MB
+
+# CORS Configuration
+ALLOWED_ORIGINS=http://localhost:3000,https://your-frontend-domain.com
+```
+
+### 10.2 Application-Specific Properties
+```properties
+# Application Configuration
+app.name=Notus
+app.version=1.0.0
+app.otp.expiry-minutes=10
+app.workspace.max-per-user=5
+app.bcrypt.strength=12
+
+# Logging Configuration
+logging.level.com.notus=DEBUG
+logging.level.org.springframework.web=INFO
+logging.level.org.hibernate.SQL=DEBUG
+logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss} - %msg%n
+```
+
+---
+
+## 11. Testing Requirements
+
+### 11.1 Unit Testing
+- **Framework**: JUnit 5 + Mockito
+- **Coverage Target**: Minimum 80% code coverage
+- **Test Categories**: Service layer, Repository layer, Utility classes
+- **Mocking Strategy**: Mock external dependencies (email service, file system)
+
+### 11.2 Integration Testing
+- **Framework**: Spring Boot Test + TestContainers
+- **Database**: PostgreSQL TestContainer for real database testing
+- **Test Categories**: API endpoints, Database operations, Security filters
+- **Test Data**: Use @Sql scripts for test data setup
+
+### 11.3 API Testing
+- **Framework**: MockMvc for controller testing
+- **Authentication**: Test with valid/invalid JWT tokens
+- **Validation**: Test all validation rules and error responses
+- **Business Logic**: Test workspace limits, OTP expiry, user ownership
+
+---
+---
+
+## 14. Data Validation Rules
+
+### 14.1 Input Validation Specifications
+
+#### 14.1.1 Email Validation
+- **Format**: RFC 5322 compliant email format
+- **Length**: Maximum 255 characters
+- **Case Sensitivity**: Case-insensitive storage and comparison
+- **Whitespace**: Trim leading/trailing whitespace
+- **Special Characters**: Allow standard email special characters
+- **Validation Regex**: `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}# Notus Backend Complete Specification
+
+## 1. Project Overview and Architecture
+
+### 1.1 Technology Stack (Exact Versions)
+- **Java**: Version 17 or higher (LTS)
+- **Spring Boot**: Version 3.2.0 or latest 3.x
+- **Spring Data JPA**: Version 3.2.0 (included with Spring Boot)
+- **Spring Security**: Version 6.2.0 (included with Spring Boot)
+- **PostgreSQL**: Version 15 or higher
+- **PostgreSQL JDBC Driver**: Version 42.7.0 or latest
+- **JWT Library**: `io.jsonwebtoken:jjwt-api:0.12.3`, `io.jsonwebtoken:jjwt-impl:0.12.3`, `io.jsonwebtoken:jjwt-jackson:0.12.3`
+- **Build Tool**: Maven (preferred) or Gradle
+- **Email**: Spring Boot Starter Mail
+- **Password Hashing**: BCryptPasswordEncoder (Spring Security default)
+- **Lombok**: Version 1.18.30 (optional but recommended)
+- **Jackson**: Included with Spring Boot for JSON serialization
+
+### 1.2 Project Structure
+```
+src/main/java/com/notus/
+├── NotusApplication.java (Main Spring Boot application class)
+├── config/
+│   ├── SecurityConfig.java
+│   ├── JwtConfig.java
+│   └── EmailConfig.java
+├── controller/
+│   ├── AuthController.java
+│   ├── WorkspaceController.java
+│   └── PageController.java
+├── service/
+│   ├── AuthService.java
+│   ├── WorkspaceService.java
+│   ├── PageService.java
+│   └── EmailService.java
+├── repository/
+│   ├── UserRepository.java
+│   ├── WorkspaceRepository.java
+│   ├── PageRepository.java
+│   └── OtpVerificationRepository.java
+├── entity/
+│   ├── User.java
+│   ├── Workspace.java
+│   ├── Page.java
+│   └── OtpVerification.java
+├── dto/
+│   ├── request/ (All request DTOs)
+│   └── response/ (All response DTOs)
+├── exception/
+│   ├── GlobalExceptionHandler.java
+│   └── CustomExceptions.java
+└── util/
+    ├── JwtUtil.java
+    └── OtpUtil.java
+```
+
+---
+
+## 2. Database Schema Definition
+
+### 2.1 PostgreSQL Database Configuration
+- **Database Name**: `notus_db`
+- **Default Port**: 5432
+- **Connection Pool**: HikariCP (Spring Boot default)
+- **Timezone**: UTC
+- **Character Set**: UTF8
+
+### 2.2 Table Definitions
+
+#### 2.2.1 users Table
+```sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    is_email_verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_email_verified ON users(is_email_verified);
+```
+
+#### 2.2.2 workspaces Table
+```sql
+CREATE TABLE workspaces (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_workspaces_user_id ON workspaces(user_id);
+CREATE INDEX idx_workspaces_user_id_not_deleted ON workspaces(user_id, is_deleted);
+```
+
+#### 2.2.3 pages Table
+```sql
+CREATE TABLE pages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    parent_page_id UUID REFERENCES pages(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_pages_workspace_id ON pages(workspace_id);
+CREATE INDEX idx_pages_parent_page_id ON pages(parent_page_id);
+CREATE INDEX idx_pages_workspace_not_deleted ON pages(workspace_id, is_deleted);
+```
+
+#### 2.2.4 otp_verifications Table
+```sql
+CREATE TABLE otp_verifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    otp_code VARCHAR(6) NOT NULL,
+    expiry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_otp_user_id ON otp_verifications(user_id);
+CREATE INDEX idx_otp_expiry ON otp_verifications(expiry_timestamp);
+```
+
+---
+
+## 3. Entity Definitions and Relationships
+
+### 3.1 User Entity Requirements
+- **Primary Key**: UUID string
+- **Email**: Unique, case-insensitive, validated format
+- **Password**: BCrypt hashed, minimum 60 characters storage
+- **Email Verification**: Boolean flag, defaults to false
+- **Timestamps**: Created and updated timestamps in UTC
+- **Relationships**: One-to-many with Workspaces, One-to-one with OtpVerification
+
+### 3.2 Workspace Entity Requirements
+- **Primary Key**: UUID string
+- **User Reference**: Foreign key to User, cascade delete
+- **Name**: Non-empty string, max 255 characters
+- **Soft Delete**: Boolean flag for logical deletion
+- **Business Rule**: Maximum 5 workspaces per user (active only)
+- **Timestamps**: Created and updated timestamps in UTC
+
+### 3.3 Page Entity Requirements
+- **Primary Key**: UUID string
+- **Workspace Reference**: Foreign key to Workspace, cascade delete
+- **Parent Page Reference**: Self-referencing foreign key, nullable for root pages
+- **Title**: Non-empty text, unlimited length
+- **Content**: JSON string representing Lexical editor state
+- **Soft Delete**: Boolean flag for logical deletion
+- **Hierarchy**: Supports unlimited nesting depth
+- **Timestamps**: Created and updated timestamps in UTC
+
+### 3.4 OtpVerification Entity Requirements
+- **Primary Key**: UUID string
+- **User Reference**: Unique foreign key to User, cascade delete
+- **OTP Code**: Exactly 6 numeric digits
+- **Expiry**: Timestamp exactly 10 minutes from creation
+- **Constraint**: One active OTP per user maximum
+
+---
+
+## 4. REST API Specification
+
+### 4.1 Authentication Endpoints
+
+#### 4.1.1 POST /api/auth/signup
+**Purpose**: Register new user and send OTP email
+
+**Request Headers**:
+- `Content-Type: application/json`
+
+**Request Body**:
+```json
+{
+    "email": "user@example.com",
+    "password": "plainTextPassword123"
+}
+```
+
+**Request Validation Rules**:
+- Email: Valid email format, not null, not blank
+- Password: Minimum 8 characters, not null, not blank
+
+**Response Success (201 Created)**:
+```json
+{
+    "message": "Signup successful. Please check your email for OTP verification.",
+    "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+**Response Errors**:
+- 400 Bad Request: Invalid email format or password too short
+- 409 Conflict: Email already exists
+- 500 Internal Server Error: Email sending failure
+
+**Business Logic**:
+1. Validate email format and password length
+2. Check if email already exists (return 409 if exists)
+3. Hash password using BCrypt with strength 12
+4. Create User entity with is_email_verified = false
+5. Generate 6-digit numeric OTP
+6. Store OTP with 10-minute expiry
+7. Send OTP email
+8. Return success response (do not reveal if user exists)
+
+#### 4.1.2 POST /api/auth/verify-otp
+**Purpose**: Verify OTP and activate account
+
+**Request Headers**:
+- `Content-Type: application/json`
+
+**Request Body**:
+```json
+{
+    "email": "user@example.com",
+    "otpCode": "123456"
+}
+```
+
+**Request Validation Rules**:
+- Email: Valid email format, not null
+- OtpCode: Exactly 6 digits, not null
+
+**Response Success (200 OK)**:
+```json
+{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiresAt": "2024-01-16T10:30:00Z",
+    "user": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "email": "user@example.com",
+        "emailVerified": true
+    }
+}
+```
+
+**Response Errors**:
+- 400 Bad Request: Invalid OTP code or expired OTP
+- 404 Not Found: User not found
+- 500 Internal Server Error: Token generation failure
+
+**Business Logic**:
+1. Find user by email
+2. Validate OTP exists and not expired
+3. Compare OTP codes (exact match)
+4. Set user.is_email_verified = true
+5. Delete OTP record
+6. Generate JWT token with 24-hour expiry
+7. Return token and user details
+
+#### 4.1.3 POST /api/auth/login
+**Purpose**: Authenticate existing user
+
+**Request Headers**:
+- `Content-Type: application/json`
+
+**Request Body**:
+```json
+{
+    "email": "user@example.com",
+    "password": "plainTextPassword123"
+}
+```
+
+**Request Validation Rules**:
+- Email: Valid email format, not null
+- Password: Not null, not blank
+
+**Response Success (200 OK)**:
+```json
+{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiresAt": "2024-01-16T10:30:00Z",
+    "user": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "email": "user@example.com",
+        "emailVerified": true
+    }
+}
+```
+
+**Response Errors**:
+- 401 Unauthorized: Invalid credentials or email not verified
+- 404 Not Found: User not found
+
+**Business Logic**:
+1. Find user by email
+2. Check if user exists
+3. Verify password using BCrypt
+4. Check if email is verified
+5. Generate JWT token with 24-hour expiry
+6. Return token and user details
+
+### 4.2 Workspace Management Endpoints
+
+#### 4.2.1 POST /api/workspaces
+**Purpose**: Create new workspace
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+- `Content-Type: application/json`
+
+**Request Body**:
+```json
+{
+    "name": "My New Workspace"
+}
+```
+
+**Request Validation Rules**:
+- Name: Not null, not blank, max 255 characters
+
+**Response Success (201 Created)**:
+```json
+{
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "name": "My New Workspace",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+**Response Errors**:
+- 400 Bad Request: User already has 5 workspaces or invalid name
+- 401 Unauthorized: Invalid or missing JWT token
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Count user's active workspaces (is_deleted = false)
+3. Reject if count >= 5
+4. Create new workspace
+5. Return workspace details
+
+#### 4.2.2 GET /api/workspaces
+**Purpose**: Get all user's workspaces
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+
+**Response Success (200 OK)**:
+```json
+[
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440001",
+        "name": "Workspace 1",
+        "createdAt": "2024-01-15T10:30:00Z",
+        "updatedAt": "2024-01-15T10:30:00Z"
+    },
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440002",
+        "name": "Workspace 2",
+        "createdAt": "2024-01-15T11:00:00Z",
+        "updatedAt": "2024-01-15T11:00:00Z"
+    }
+]
+```
+
+**Response Errors**:
+- 401 Unauthorized: Invalid or missing JWT token
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Find all workspaces where user_id = user.id AND is_deleted = false
+3. Return workspace list
+
+#### 4.2.3 DELETE /api/workspaces/{workspaceId}
+**Purpose**: Soft delete workspace
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+
+**Path Parameters**:
+- `workspaceId`: UUID string
+
+**Response Success (204 No Content)**:
+- Empty response body
+
+**Response Errors**:
+- 401 Unauthorized: Invalid or missing JWT token
+- 404 Not Found: Workspace not found or not owned by user
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Find workspace by ID and user_id
+3. Set is_deleted = true
+4. Update updated_at timestamp
+5. Return 204 status
+
+### 4.3 Page Management Endpoints
+
+#### 4.3.1 POST /api/pages
+**Purpose**: Create new page
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+- `Content-Type: application/json`
+
+**Request Body**:
+```json
+{
+    "workspaceId": "550e8400-e29b-41d4-a716-446655440001",
+    "parentPageId": "550e8400-e29b-41d4-a716-446655440003",
+    "title": "My New Page",
+    "content": "{\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Hello World\",\"type\":\"text\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}"
+}
+```
+
+**Request Validation Rules**:
+- WorkspaceId: Valid UUID, not null
+- ParentPageId: Valid UUID or null
+- Title: Not null, not blank
+- Content: Valid JSON string, not null
+
+**Response Success (201 Created)**:
+```json
+{
+    "id": "550e8400-e29b-41d4-a716-446655440004",
+    "workspaceId": "550e8400-e29b-41d4-a716-446655440001",
+    "parentPageId": "550e8400-e29b-41d4-a716-446655440003",
+    "title": "My New Page",
+    "content": "{\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Hello World\",\"type\":\"text\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+**Response Errors**:
+- 400 Bad Request: Invalid workspace ID or parent page ID
+- 401 Unauthorized: Invalid or missing JWT token
+- 404 Not Found: Workspace not found or not owned by user
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Verify workspace exists and belongs to user
+3. If parentPageId provided, verify it exists in same workspace
+4. Create new page
+5. Return page details
+
+#### 4.3.2 PUT /api/pages/{pageId}
+**Purpose**: Update existing page
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+- `Content-Type: application/json`
+
+**Path Parameters**:
+- `pageId`: UUID string
+
+**Request Body**:
+```json
+{
+    "title": "Updated Page Title",
+    "content": "{\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Updated content\",\"type\":\"text\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}"
+}
+```
+
+**Request Validation Rules**:
+- Title: Optional, if provided must not be blank
+- Content: Optional, if provided must be valid JSON string
+
+**Response Success (200 OK)**:
+```json
+{
+    "id": "550e8400-e29b-41d4-a716-446655440004",
+    "workspaceId": "550e8400-e29b-41d4-a716-446655440001",
+    "parentPageId": "550e8400-e29b-41d4-a716-446655440003",
+    "title": "Updated Page Title",
+    "content": "{\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Updated content\",\"type\":\"text\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T12:00:00Z"
+}
+```
+
+**Response Errors**:
+- 401 Unauthorized: Invalid or missing JWT token
+- 404 Not Found: Page not found or not owned by user
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Find page and verify it belongs to user's workspace
+3. Update only provided fields (title and/or content)
+4. Update updated_at timestamp
+5. Return updated page details
+
+#### 4.3.3 GET /api/workspaces/{workspaceId}/pages
+**Purpose**: Get all pages in workspace
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+
+**Path Parameters**:
+- `workspaceId`: UUID string
+
+**Response Success (200 OK)**:
+```json
+[
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440004",
+        "parentPageId": null,
+        "title": "Root Page",
+        "content": "{\"root\":{\"children\":[],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}",
+        "createdAt": "2024-01-15T10:30:00Z",
+        "updatedAt": "2024-01-15T10:30:00Z"
+    },
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440005",
+        "parentPageId": "550e8400-e29b-41d4-a716-446655440004",
+        "title": "Child Page",
+        "content": "{\"root\":{\"children\":[],\"direction\":\"ltr\",\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}",
+        "createdAt": "2024-01-15T11:00:00Z",
+        "updatedAt": "2024-01-15T11:00:00Z"
+    }
+]
+```
+
+**Response Errors**:
+- 401 Unauthorized: Invalid or missing JWT token
+- 404 Not Found: Workspace not found or not owned by user
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Verify workspace exists and belongs to user
+3. Find all pages where workspace_id = workspaceId AND is_deleted = false
+4. Return pages as flat list (not hierarchical)
+
+#### 4.3.4 DELETE /api/pages/{pageId}
+**Purpose**: Soft delete page
+
+**Authentication**: Required (JWT Bearer token)
+
+**Request Headers**:
+- `Authorization: Bearer <jwt_token>`
+
+**Path Parameters**:
+- `pageId`: UUID string
+
+**Response Success (204 No Content)**:
+- Empty response body
+
+**Response Errors**:
+- 401 Unauthorized: Invalid or missing JWT token
+- 404 Not Found: Page not found or not owned by user
+
+**Business Logic**:
+1. Extract user from JWT token
+2. Find page and verify it belongs to user's workspace
+3. Set is_deleted = true
+4. Update updated_at timestamp
+5. Return 204 status
+
+---
+
+## 5. Security Implementation Details
+
+### 5.1 JWT Token Configuration
+- **Algorithm**: HS256 (HMAC with SHA-256)
+- **Secret Key**: Minimum 256-bit random string (stored in environment variable)
+- **Token Expiry**: Exactly 24 hours from generation
+- **Claims**: user_id (UUID), email, issued_at, expires_at
+- **Header Format**: `Authorization: Bearer <token>`
+
+### 5.2 Password Security
+- **Hashing Algorithm**: BCrypt
+- **Salt Rounds**: 12 (configurable via application properties)
+- **Minimum Password Length**: 8 characters (validated in request)
+- **Storage**: Hash stored in password field (VARCHAR 255)
+
+### 5.3 CORS Configuration
+- **Allowed Origins**: Configure for frontend URL (localhost for development)
+- **Allowed Methods**: GET, POST, PUT, DELETE, OPTIONS
+- **Allowed Headers**: Authorization, Content-Type
+- **Credentials**: Allowed for cookie support (if needed)
+
+### 5.4 Security Headers
+- **X-Content-Type-Options**: nosniff
+- **X-Frame-Options**: DENY
+- **X-XSS-Protection**: 1; mode=block
+- **Strict-Transport-Security**: max-age=31536000; includeSubDomains
+
+---
+
+## 6. Email Service Configuration
+
+### 6.1 SMTP Configuration
+- **Provider**: Gmail SMTP (or configurable)
+- **Host**: smtp.gmail.com
+- **Port**: 587 (TLS)
+- **Authentication**: Username/password via application properties
+- **TLS**: Enabled
+
+### 6.2 OTP Email Template
+- **Subject**: "Notus - Email Verification Code"
+- **Content**: Plain text with 6-digit code
+- **Sender**: noreply@notus.com (configurable)
+- **Template**: "Your verification code is: {OTP_CODE}. This code will expire in 10 minutes."
+
+### 6.3 OTP Generation Rules
+- **Format**: Exactly 6 numeric digits
+- **Range**: 100000 to 999999
+- **Generation**: SecureRandom for cryptographic security
+- **Expiry**: Exactly 10 minutes from creation timestamp
+- **Storage**: Store code, user_id, and expiry timestamp
+
+---
+
+## 7. File Upload Handling
+
+### 7.1 Supported File Types
+- **Images**: .jpg, .jpeg, .png, .webp
+- **Documents**: .pdf
+- **MIME Type Validation**: Verify actual file content matches extension
+- **Size Limit**: No backend size limit (frontend handles size validation)
+
+### 7.2 File Storage Strategy
+- **Storage Location**: `/uploads/` directory relative to application root
+- **Directory Structure**: `/uploads/{user_id}/{workspace_id}/`
+- **File Naming**: Original filename with UUID prefix to avoid conflicts
+- **Path Format**: `{user_id}/{workspace_id}/{uuid}_{original_filename}`
+
+### 7.3 File Upload Endpoint
+- **Endpoint**: POST /api/files/upload
+- **Authentication**: Required (JWT Bearer token)
+- **Request**: Multipart form data with file
+- **Response**: File URL or path for embedding in page content
+- **Validation**: File type, file size (if configured), virus scanning (optional)
+
+---
+
+## 8. Error Handling and Responses
+
+### 8.1 Global Exception Handler
+- **Implementation**: @ControllerAdvice class
+- **Exception Types**: ValidationException, AuthenticationException, AuthorizationException, ResourceNotFoundException, InternalServerException
+- **Response Format**: Consistent JSON error structure
+
+### 8.2 Error Response Format
+```json
+{
+    "timestamp": "2024-01-15T10:30:00Z",
+    "status": 400,
+    "error": "Bad Request",
+    "message": "Detailed error description",
+    "path": "/api/auth/signup",
+    "details": {
+        "field": "email",
+        "rejectedValue": "invalid-email",
+        "message": "Invalid email format"
+    }
+}
+```
+
+### 8.3 HTTP Status Code Mapping
+- **200 OK**: Successful GET, PUT requests
+- **201 Created**: Successful resource creation (POST)
+- **204 No Content**: Successful DELETE requests
+- **400 Bad Request**: Validation failures, malformed requests
+- **401 Unauthorized**: Authentication failures, invalid tokens
+- **403 Forbidden**: Authorization failures, insufficient permissions
+- **404 Not Found**: Resource not found or unauthorized access
+- **409 Conflict**: Resource already exists (duplicate email)
+- **422 Unprocessable Entity**: Business rule violations
+- **500 Internal Server Error**: Unexpected server errors
+
+---
+
+## 9. Database Connection and Configuration
+
+### 9.1 Connection Pool Settings
+- **Pool Type**: HikariCP (Spring Boot default)
+- **Maximum Pool Size**: 20 connections
+- **Minimum Idle**: 5 connections
+- **Connection Timeout**: 30 seconds
+- **Idle Timeout**: 10 minutes
+- **Max Lifetime**: 30 minutes
+
+### 9.2 JPA Configuration
+- **Hibernate DDL**: validate (production), update (development)
+- **Show SQL**: false (production), true (development)
+- **Naming Strategy**: SpringPhysicalNamingStrategy (snake_case)
+- **Batch Size**: 25 for bulk operations
+- **Second Level Cache**: Disabled for simplicity
+
+### 9.3 Transaction Management
+- **Isolation Level**: READ_COMMITTED
+- **Propagation**: REQUIRED (default)
+- **Rollback Rules**: RuntimeException and checked exceptions
+- **Timeout**: 30 seconds for all transactions
+
+---
+
+## 10. Application Properties Configuration
+
+### 10.1 Required Environment Variables
+```properties
+# Database Configuration
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/notus_db
+SPRING_DATASOURCE_USERNAME=notus_user
+SPRING_DATASOURCE_PASSWORD=secure_password
+
+# JWT Configuration
+JWT_SECRET_KEY=your_256_bit_secret_key_here
+JWT_EXPIRY_HOURS=24
+
+# Email Configuration
+SPRING_MAIL_HOST=smtp.gmail.com
+SPRING_MAIL_PORT=587
+SPRING_MAIL_USERNAME=your_email@gmail.com
+SPRING_MAIL_PASSWORD=your_app_password
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true
+
+# File Upload Configuration
+FILE_UPLOAD_DIRECTORY=/uploads/
+MAX_FILE_SIZE=10MB
+MAX_REQUEST_SIZE=10MB
+
+# CORS Configuration
+ALLOWED_ORIGINS=http://localhost:3000,https://your-frontend-domain.com
+```
+
+### 10.2 Application-Specific Properties
+```properties
+# Application Configuration
+app.name=Notus
+app.version=1.0.0
+app.otp.expiry-minutes=10
+app.workspace.max-per-user=5
+app.bcrypt.strength=12
+
+# Logging Configuration
+logging.level.com.notus=DEBUG
+logging.level.org.springframework.web=INFO
+logging.level.org.hibernate.SQL=DEBUG
+logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss} - %msg%n
+```
+
+---
+
+## 11. Testing Requirements
+
+### 11.1 Unit Testing
+- **Framework**: JUnit 5 + Mockito
+- **Coverage Target**: Minimum 80% code coverage
+- **Test Categories**: Service layer, Repository layer, Utility classes
+- **Mocking Strategy**: Mock external dependencies (email service, file system)
+
+### 11.2 Integration Testing
+- **Framework**: Spring Boot Test + TestContainers
+- **Database**: PostgreSQL TestContainer for real database testing
+- **Test Categories**: API endpoints, Database operations, Security filters
+- **Test Data**: Use @Sql scripts for test data setup
+
+### 11.3 API Testing
+- **Framework**: MockMvc for controller testing
+- **Authentication**: Test with valid/invalid JWT tokens
+- **Validation**: Test all validation rules and error responses
+- **Business Logic**: Test workspace limits, OTP expiry, user ownership
+
+
+#### 14.1.2 Password Validation
+- **Minimum Length**: 8 characters
+- **Maximum Length**: 128 characters (before hashing)
+- **Character Requirements**: No specific character type requirements
+- **Forbidden Characters**: No null bytes or control characters
+- **Encoding**: UTF-8 support for international characters
+
+#### 14.1.3 Workspace Name Validation
+- **Minimum Length**: 1 character (after trimming)
+- **Maximum Length**: 255 characters
+- **Allowed Characters**: Any printable Unicode characters
+- **Whitespace**: Trim leading/trailing, preserve internal spaces
+- **Empty Check**: Reject blank or whitespace-only names
+
+#### 14.1.4 Page Title Validation
+- **Minimum Length**: 1 character (after trimming)
+- **Maximum Length**: No limit (TEXT field)
+- **Allowed Characters**: Any Unicode characters including emojis
+- **Whitespace**: Preserve all whitespace as entered
+- **HTML**: Store as plain text, no HTML parsing
+
+#### 14.1.5 Page Content Validation
+- **Format**: Must be valid JSON string
+- **Schema**: Lexical editor JSON structure (validate basic structure)
+- **Size Limit**: No explicit limit (database TEXT field)
+- **Encoding**: UTF-8 with full Unicode support
+- **Sanitization**: No HTML sanitization (stored as JSON)
+
+#### 14.1.6 OTP Code Validation
+- **Format**: Exactly 6 numeric digits
+- **Range**: 100000 to 999999 (no leading zeros issue)
+- **Type**: String storage to preserve leading zeros if any
+- **Case Sensitivity**: Not applicable (numeric only)
+- **Whitespace**: Trim and reject if contains spaces
+
+### 14.2 Business Rule Validations
+
+#### 14.2.1 User Registration Rules
+- **Duplicate Email**: Check uniqueness before creating user
+- **Email Domain**: No restriction on email domains
+- **Account Limit**: No limit on number of accounts per email domain
+- **Registration Rate**: No rate limiting on registration (handle via OTP)
+
+#### 14.2.2 Workspace Creation Rules
+- **Maximum Count**: Exactly 5 workspaces per user (active only)
+- **Name Uniqueness**: Names do not need to be unique per user
+- **Deletion Impact**: Soft delete preserves data for potential recovery
+- **Ownership Transfer**: Not supported in Phase 1
+
+#### 14.2.3 Page Hierarchy Rules
+- **Nesting Depth**: No limit on nesting levels
+- **Circular References**: Prevent parent-child circular dependencies
+- **Orphaned Pages**: Allow pages without parents (root pages)
+- **Cross-Workspace**: Pages cannot reference pages from other workspaces
+- **Deletion Cascade**: Deleting workspace soft-deletes all pages
+
+#### 14.2.4 Authentication Rules
+- **Email Verification**: Required before login token issuance
+- **Token Expiry**: Exactly 24 hours, no refresh mechanism
+- **Concurrent Sessions**: No limit on concurrent sessions per user
+- **Password Reset**: Not implemented in Phase 1 (manual process)
+
+---
+
+## 15. Integration Points and External Services
+
+### 15.1 Email Service Integration
+
+#### 15.1.1 SMTP Configuration Details
+- **Primary Provider**: Gmail SMTP (smtp.gmail.com:587)
+
+#### 15.1.2 Email Template Management
+- **Template Storage**: Hard-coded templates in service class
+
+
+
+
+
+
+
+
+
+
+
+

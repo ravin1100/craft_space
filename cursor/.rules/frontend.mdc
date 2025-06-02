@@ -1,0 +1,31 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# CraftSpace Frontend Detailed Specification
+
+## 1. Overview
+
+The frontend is implemented using **React 18+** with **JavaScript (or optionally TypeScript)**, styled with **Tailwind CSS v3+**. It communicates with the backend REST APIs over HTTPS and handles JWT authentication locally in secure storage.
+
+---
+
+## 2. Technology Stack and Versions
+
+- React 18.x
+- JavaScript (ES2021+) or optionally TypeScript 4.x
+- Tailwind CSS v3.x for utility-first styling
+- React Router v6 for client-side routing
+- Axios v1.x for HTTP requests
+- JWT-decode for decoding and managing JWT tokens (optional)
+- React Query (TanStack Query) v4.x for API data fetching and caching (optional but recommended)
+- ESLint + Prettier for code quality and formatting
+- Vite or Create React App for project bootstrapping (Vite preferred for modern dev experience)
+- React Hook Form v7.x for form handling and validation (optional but recommended)
+- Heroicons or similar SVG icon library (optional)
+
+---
+
+## 3. Project Structure
+

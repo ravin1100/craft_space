@@ -1,0 +1,83 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 🚀 CraftSpace Backend Development Phases
+
+## Completed Tasks
+- [x] Project Setup & Configuration
+  - [x] Initialize Spring Boot project
+  - [x] Configure Maven dependencies
+  - [x] Set up application properties
+  - [x] Configure PostgreSQL database
+
+- [x] Database Schema Implementation
+  - [x] Create User entity
+  - [x] Create Workspace entity
+  - [x] Create Page entity
+  - [x] Create OtpVerification entity
+  - [x] Implement repository interfaces
+  - [x] Set up JPA relationships
+  - [x] Configure soft delete functionality
+
+- [x] Authentication System
+  - [x] Implement JWT authentication
+  - [x] Set up security configurations
+  - [x] Create authentication endpoints
+  - [x] Implement email verification with OTP
+  - [x] Add refresh token functionality
+
+- [x] Workspace Management
+  - [x] Implement CRUD operations
+  - [x] Add workspace limit per user
+  - [x] Implement soft delete
+  - [x] Add validation
+
+- [x] Page Management
+  - [x] Implement CRUD operations
+  - [x] Set up nested page structure
+  - [x] Add sorting functionality
+  - [x] Implement content validation
+  - [x] Add hierarchy management
+
+- [x] Exception Handling & Validation
+  - [x] Create custom exceptions
+  - [x] Implement global exception handler
+  - [x] Add validation annotations
+  - [x] Standardize error responses
+
+- [x] Rate Limiting & Security Headers
+  - [x] Implement rate limiting with Bucket4j
+  - [x] Add security headers
+  - [x] Configure CSP
+  - [x] Set up XSS protection
+
+- [x] Testing & Quality Assurance
+  - [x] Write unit tests for services
+  - [x] Add API documentation with Swagger
+
+## Phase 1: Project Setup and Configuration
+- [x] Initialize Spring Boot Project (v3.2.0)
+  - [x] Set up Maven project structure
+  - [x] Configure Java 17
+  - [x] Add initial dependencies in pom.xml
+- [x] Database Setup
+  - [x] Configure application.properties/yaml
+  - [x] Install PostgreSQL 15
+  - [x] Create craft_space database
+- [x] Project Structure Creation
+  ```
+  src/main/java/com/notus/
+  ├── CraftSpaceApplication.java
+  ├── config/
+  ├── controller/
+  ├── service/
+  ├── repository/
+  ├── entity/
+  ├── dto/
+  ├── exception/
+  └── util/
+  ```
+
+🎉 All tasks completed! The backend is now ready for deployment.

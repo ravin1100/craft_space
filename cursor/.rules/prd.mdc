@@ -1,0 +1,75 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 📝 Product Requirement Document (PRD): CraftSpace
+
+## 📌 Overview
+
+**CraftSpace** is a minimal, personal knowledge base and note-taking application with a Lexical-based block editor, dark/light theme support, autosave functionality, workspace organization, and future extensibility for AI-based features.
+
+---
+
+## 👥 User Authentication
+
+* **Signup/Login**: Email and password
+* **Email Verification**: OTP sent to email (10-minute expiry) 
+* **Password Requirements**: No restrictions (any password accepted)
+* **JWT Token**: Valid for 24 hours, no auto-refresh behavior 
+
+---
+
+## 🧠 Core Concepts
+
+### Workspaces
+
+* User creates a workspace after first login (if there is no workspace)
+* User can create maximum 5 workspaces
+* Workspaces are single-user (no sharing, no roles)
+* Soft-delete supported (manual deletion from trash)
+
+### Pages
+
+* Pages belong to a workspace
+* Nested pages supported (unlimited depth)
+* No limit on number of pages per workspace
+* Breadcrumb navigation enabled
+* Pages are soft-deleted (manual deletion from trash)
+* No versioning/edit history
+* Export support (Markdown/PDF) is handled by Lexical
+* No page duplication
+* Page title has no character limit
+
+---
+
+## ✍️ Editor: Lexical-based
+
+### Supported Blocks
+
+* Paragraphs
+* Headings
+* Checkbox / To-do blocks ✅
+* Code blocks with syntax highlighting ✅ (language handled internally by Lexical)
+* Table blocks with row/column add/remove ✅
+* Quote blocks / callouts ✅
+* Embeds: **Image** and **PDF** only ✅
+* Block drag-and-drop ✅
+* Save after **2 seconds** of inactivity
+
+---
+
+## 📂 File Uploads
+
+* File types supported: **Images** (JPG, PNG, WebP), **PDFs**
+* Max file size: Not restricted (handled via frontend validation if needed)
+
+
+
+
+
+
+
+
+
+

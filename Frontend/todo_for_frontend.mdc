@@ -1,0 +1,125 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+✅ Phase 1: Project Setup
+[x] Set up Vite + React + JS project structure
+[x] Install and configure Tailwind CSS
+[x] Set up React Router for routing
+[x] Install Axios for API calls
+[x] Install Framer Motion for animations
+[x] Install Lexical and required plugins (@lexical/react, etc.)
+[x] Set up folder structure (components, pages, editors, utils, services, etc.)
+[x] Set up global theme, constants, and base styles
+
+🧭 Phase 2: Layout & Routing
+[x] Create landing page
+[x] Create layout with sidebar + top navbar
+[x] Implement routing for main sections:
+  - [x] Home
+  - [x] Workspace
+  - [x] Page View
+[x] Add route transitions using Framer Motion
+[x] Create error/404 page
+
+✍️ Phase 3: Page & Editor Features (Lexical)
+[x] Integrate Lexical React Editor in page component
+[x] Configure initial plugins:
+  - [x] HistoryPlugin
+  - [x] RichTextPlugin
+  - [x] ContentEditable
+  - [x] OnChangePlugin
+[x] Add support for common blocks:
+  - [x] Headings (H1, H2, H3)
+  - [x] Paragraphs
+  - [x] Bullet & Numbered Lists
+  - [x] Quote blocks
+  - [x] Code blocks
+[x] Enable keyboard-based block creation (Enter, Backspace, Slash / commands)
+[x] Save/update Lexical state to backend using Axios
+[x] Load Lexical content from backend and deserialize
+[x] Handle block selection UI and block toolbar (e.g., bold, italic, etc.)
+[x] Show loading and error states
+
+🧩 Phase 4: Workspace & Page Management
+[x] List user workspaces
+[x] Create new workspace
+[x] Show pages inside each workspace
+[x] Create a new page inside workspace
+[x] Rename, duplicate, and delete pages
+[x] Add basic icon and cover selection for pages
+[x] Update layout/sidebar with dynamic workspace/page list
+
+🔐 Phase 5: Authentication & Authorization
+[x] Setup login and registration pages
+[x] Use JWT/token-based auth with backend
+[x] Protect routes using route guards
+[x] Persist auth state using localStorage or cookies
+
+🌟 Phase 6: UI Polish & UX Enhancements
+[ ] Add hover & active state styles using Tailwind
+[ ] Add smooth animations with Framer Motion (e.g., sidebar, page transitions)
+[ ] Add keyboard shortcuts (e.g., Ctrl + S to save, / to open block menu)
+[ ] Implement inline slash (/) command menu for quick block insertions
+[ ] Show toast notifications (e.g., save success, error)
+[ ] Add skeleton loaders for content loading
+[ ] Make layout responsive (desktop, tablet, mobile)
+
+🧪 Phase 7: Testing & Final Touches
+[ ] Test full flow (workspace → create/edit/delete pages with content)
+[ ] Handle and test backend error scenarios
+[ ] Cross-browser testing
+[ ] Lighthouse audit for performance/accessibility
+[ ] Optimize production build for deployment
+[ ] Deploy to Vercel or Netlify
+
+
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
