@@ -7,9 +7,12 @@ import java.util.List;
 import org.apache.coyote.BadRequestException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.notus.dto.request.QueryRequest;
@@ -43,14 +46,9 @@ public class AIFeatureController {
     
     @PostMapping("/upload")
     public ResponseEntity<String> uploadDocument() throws BadRequestException {
-        // fallback to UUID if no sourceId provided
     	User currentUser = ContextService.getCurrentUser();
-    	
-    	if(currentUser == null) {
-    		throw new BadRequestException("Something Went Wrong !");
-    	}
         chunkStorageService.processAndStore(currentUser);
-        return ResponseEntity.ok("Document processed and stored successfully with source: " + currentUser.getName());
+        return ResponseEntity.ok("Content stored successfully with source: " + currentUser.getName());
     }
     
     @PostMapping("/query")
@@ -78,4 +76,17 @@ public class AIFeatureController {
 
         return ResponseEntity.ok(answer);
     }
+    
+    @GetMapping("/upload/{pageId}/tag")
+    public ResponseEntity<String> uploadDocumentForTags(@PathVariable Long pageId) throws IOException {
+    	User currentUser = ContextService.getCurrentUser();
+        return ResponseEntity.ok(chunkStorageService.processAndStoreForTags(currentUser, pageId, true));
+    }
+    
+    @GetMapping("/upload/{pageId}/summary")
+    public ResponseEntity<String> uploadDocumentForSummary(@PathVariable Long pageId) throws IOException {
+    	User currentUser = ContextService.getCurrentUser();
+        return ResponseEntity.ok(chunkStorageService.processAndStoreForTags(currentUser, pageId, false));
+    }
+    
 }

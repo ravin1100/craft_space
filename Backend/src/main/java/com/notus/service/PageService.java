@@ -167,7 +167,7 @@ public class PageService {
 				.sortOrder(page.getSortOrder())
 				.childCount((int) page.getChildren().stream().filter(child -> child.getDeletedAt() == null).count())
 				.createdAt(page.getCreatedAt()).updatedAt(page.getUpdatedAt()).bookmarked(page.isBookmarked())
-				.createdBy(page.getWorkspace().getOwner().getId()).build();
+				.createdBy(page.getWorkspace().getOwner().getId()).tags(page.getTags()).build();
 	}
 
 	public void toggleBookmark(Long workspaceId, Long pageId, Long id, boolean bookmarked) {
@@ -201,11 +201,25 @@ public class PageService {
 		workspaceRepository.findActiveWorkspaceByIdAndUserId(workspaceId, id)
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace", "id", workspaceId));
 
-//		Page page = pageRepository.findSoftDeletedPageByIdAndWorkspaceId(pageId, workspaceId)
-//				.orElseThrow(() -> new ResourceNotFoundException("Page", "id", pageId));
-		
 		pageRepository.deleteById(pageId);
 
+	}
+
+	public void updateTags(Long workspaceId, Long pageId, Long id, List<String> tags) {
+		workspaceRepository.findActiveWorkspaceByIdAndUserId(workspaceId, id)
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace", "id", workspaceId));
+
+		Page page = pageRepository.findActivePageByIdAndWorkspaceId(pageId, workspaceId)
+				.orElseThrow(() -> new ResourceNotFoundException("Page", "id", pageId));
+		page.setTags(tags);
+		page = pageRepository.save(page);
+	}
+	
+	public PageResponse getPageForTags(Long pageId){
+		Page page = pageRepository.findActivePageByIdAndWorkspaceId(pageId)
+				.orElseThrow(() -> new ResourceNotFoundException("Page", "id", pageId));
+
+		return mapToResponse(page, false);
 	}
 
 }

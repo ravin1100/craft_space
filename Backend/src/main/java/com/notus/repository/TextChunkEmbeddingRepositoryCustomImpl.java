@@ -12,39 +12,50 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 
-public class TextChunkEmbeddingRepositoryCustomImpl implements TextChunkEmbeddingRepositoryCustom{
+public class TextChunkEmbeddingRepositoryCustomImpl implements TextChunkEmbeddingRepositoryCustom {
+
+	@PersistenceContext
+	private EntityManager entityManager;
+
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public List<TextChunkEmbedding> findSimilarByVector(List<Double> vector, Long sourceId) {
+		String vectorString = vector.stream().map(String::valueOf).collect(Collectors.joining(", ", "[", "]"));
+
+		// Important: Move ::vector *inside* the SQL string literal
+		String sql = "SELECT * FROM text_chunk_embedding " + "WHERE (:sourceId IS NULL OR source_id = :sourceId) "
+				+ "ORDER BY vector <-> CAST(:vectorStr AS vector) " + "LIMIT 3";
+
+		Query query = entityManager.createNativeQuery(sql, TextChunkEmbedding.class);
+		query.setParameter("sourceId", sourceId);
+		query.setParameter("vectorStr", vectorString);
+
+		List<TextChunkEmbedding> results = query.getResultList();
+		return results;
+	}
 	
-	 @PersistenceContext
-	    private EntityManager entityManager;
-	    
-	    @Autowired private JdbcTemplate jdbcTemplate;
+	
 
+	public List<String> findAllUniqueSourceIds() {
+		String sql = "SELECT DISTINCT source FROM chunk_embedding";
+		return jdbcTemplate.queryForList(sql, String.class);
+	}
+	
+	@Override
+	@SuppressWarnings("unchecked")
+	public List<TextChunkEmbedding> findEmbeddingsOfPage(Long sourceId, Long pageId) {
+	    String sql = "SELECT * FROM text_chunk_embedding " +
+	                 "WHERE source_id = :sourceId AND page_id = :pageId";
 
-	    @Override
-	    public List<TextChunkEmbedding> findSimilarByVector(List<Double> vector, Long sourceId) {
-	        String vectorString = vector.stream()
-	                .map(String::valueOf)
-	                .collect(Collectors.joining(", ", "[", "]"));
+	    Query query = entityManager.createNativeQuery(sql, TextChunkEmbedding.class);
+	    query.setParameter("sourceId", sourceId);
+	    query.setParameter("pageId", pageId);
 
-	        // Important: Move ::vector *inside* the SQL string literal
-	        String sql = "SELECT * FROM text_chunk_embedding " +
-	                "WHERE (:sourceId IS NULL OR source_id = :sourceId) " +
-	                "ORDER BY vector <-> CAST(:vectorStr AS vector) " +
-	                "LIMIT 3";
+	    return query.getResultList();
+	}
 
-	   Query query = entityManager.createNativeQuery(sql, TextChunkEmbedding.class);
-	   query.setParameter("sourceId", sourceId);
-	   query.setParameter("vectorStr", vectorString);
-
-
-	        @SuppressWarnings("unchecked")
-	        List<TextChunkEmbedding> results = query.getResultList();
-	        return results;
-	    }
-	    
-	    public List<String> findAllUniqueSourceIds() {
-	        String sql = "SELECT DISTINCT source FROM chunk_embedding";
-	        return jdbcTemplate.queryForList(sql, String.class);
-	    }
 
 }

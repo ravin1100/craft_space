@@ -26,4 +26,5 @@ public class PageResponse {
     private LocalDateTime updatedAt;
     private boolean bookmarked;
     private Long createdBy;
+    private List<String> tags;
 } 

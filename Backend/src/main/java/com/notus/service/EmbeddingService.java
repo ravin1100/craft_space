@@ -16,7 +16,8 @@ public class EmbeddingService {
 	 private final RestTemplate restTemplate = new RestTemplate();
 
 	    public List<Double> getEmbedding(String text) {
-	        String url = "http://localhost:8000/embed";
+//	        String url = "http://localhost:8000/embed";
+	        String url = "http://3.110.185.119:8001/embed";
 	        Map<String, Object> request = Map.of("texts", List.of(text));
 
 	        HttpHeaders headers = new HttpHeaders();

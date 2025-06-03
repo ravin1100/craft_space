@@ -45,6 +45,9 @@ public class Page {
     private Integer sortOrder;
     
     private boolean isBookmarked;
+    
+    @ElementCollection
+    private List<String> tags;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

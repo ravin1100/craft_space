@@ -19,6 +19,7 @@ import com.notus.dto.page.PageResponse;
 import com.notus.security.UserPrincipal;
 import com.notus.service.PageService;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -30,6 +31,7 @@ public class PageController {
     private final PageService pageService;
 
     @PostMapping
+    @Operation(summary = "Create Page")
     public ResponseEntity<PageResponse> createPage(
             @PathVariable Long workspaceId,
             @Valid @RequestBody PageRequest request,
@@ -38,6 +40,7 @@ public class PageController {
     }
 
     @GetMapping
+    @Operation(summary = "Get all pages of a workspace")
     public ResponseEntity<List<PageResponse>> getRootPages(
             @PathVariable Long workspaceId,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
@@ -53,6 +56,7 @@ public class PageController {
     }
 
     @GetMapping("/{pageId}")
+    @Operation(summary = "Get single page")
     public ResponseEntity<PageResponse> getPage(
             @PathVariable Long workspaceId,
             @PathVariable Long pageId,
@@ -61,6 +65,7 @@ public class PageController {
     }
 
     @PutMapping("/{pageId}")
+    @Operation(summary = "Update page")
     public ResponseEntity<PageResponse> updatePage(
             @PathVariable Long workspaceId,
             @PathVariable Long pageId,
@@ -70,6 +75,7 @@ public class PageController {
     }
 
     @DeleteMapping("/{pageId}")
+    @Operation(summary = "Soft delete page")
     public ResponseEntity<String> deletePage(
             @PathVariable Long workspaceId,
             @PathVariable Long pageId,
@@ -79,6 +85,7 @@ public class PageController {
     }
     
     @PutMapping("/{pageId}/bookmark")
+    @Operation(summary = "Toggle favourites or bookmarks")
     public ResponseEntity<String> toggleBookmark(
             @PathVariable Long workspaceId,
             @PathVariable Long pageId,
@@ -89,6 +96,7 @@ public class PageController {
     }
     
     @GetMapping("/trash")
+    @Operation(summary = "All trash pages")
     public ResponseEntity<List<PageResponse>> getDeletedPages(
             @PathVariable Long workspaceId,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
@@ -96,12 +104,24 @@ public class PageController {
     }
     
     @DeleteMapping("/trash/{pageId}")
+    @Operation(summary = "Hard delete page")
     public ResponseEntity<String> hardDeletePage(
             @PathVariable Long workspaceId,
             @PathVariable Long pageId,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         pageService.hardDeletePage(workspaceId, pageId, userPrincipal.getId());
         return ResponseEntity.ok("hard deleted");
+    }
+    
+    @PutMapping("/{pageId}/tags")
+    @Operation(summary = "Update page tags")
+    public ResponseEntity<String> updatePageTags(
+            @PathVariable Long workspaceId,
+            @PathVariable Long pageId,
+            @RequestBody List<String> tags,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        pageService.updateTags(workspaceId, pageId, userPrincipal.getId(), tags);
+        return ResponseEntity.ok("tags updated");
     }
     
 } 
