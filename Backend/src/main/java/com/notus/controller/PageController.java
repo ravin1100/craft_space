@@ -113,6 +113,16 @@ public class PageController {
         return ResponseEntity.ok("hard deleted");
     }
     
+    @PostMapping("/trash/{pageId}/restore")
+    @Operation(summary = "Restore deleted page")
+    public ResponseEntity<PageResponse> restorePage(
+            @PathVariable Long workspaceId,
+            @PathVariable Long pageId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        PageResponse restoredPage = pageService.restorePage(workspaceId, pageId, userPrincipal.getId());
+        return ResponseEntity.ok(restoredPage);
+    }
+    
     @PutMapping("/{pageId}/tags")
     @Operation(summary = "Update page tags")
     public ResponseEntity<String> updatePageTags(

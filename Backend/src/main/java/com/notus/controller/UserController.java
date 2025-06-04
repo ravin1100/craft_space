@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
+import com.notus.dto.ChangePasswordRequest;
 import com.notus.dto.UpdateProfileRequest;
 import com.notus.dto.UserResponse;
 import com.notus.entity.User;
@@ -43,5 +46,19 @@ public class UserController {
         );
         
         return ResponseEntity.ok(UserResponse.fromUser(updatedUser));
+    }
+    
+    @PutMapping("/password")
+    public ResponseEntity<?> changePassword(
+            @CurrentUser UserPrincipal userPrincipal,
+            @Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
+        
+        userService.changePassword(
+                userPrincipal.getId(),
+                changePasswordRequest.getCurrentPassword(),
+                changePasswordRequest.getNewPassword()
+        );
+        
+        return ResponseEntity.ok().body(Map.of("message", "Password changed successfully"));
     }
 }

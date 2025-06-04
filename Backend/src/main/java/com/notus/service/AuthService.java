@@ -72,9 +72,11 @@ public class AuthService {
 //            return AuthResponse.builder()
 //                    .message("Please verify your email address")
 //                    .build();
-            return AuthResponse.builder()
-                    .message("Registered Successfully")
-                    .build();
+            
+            LoginRequest loginRequest =  new LoginRequest();
+            loginRequest.setEmail(request.getEmail());
+            loginRequest.setPassword(request.getPassword());
+            return this.login(loginRequest);
         } catch (Exception e) {
             log.error("Error during signup process for email: {}", request.getEmail(), e);
             throw e;

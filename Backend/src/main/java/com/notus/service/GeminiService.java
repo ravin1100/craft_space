@@ -61,10 +61,69 @@ public class GeminiService {
 	            if (candidates.isArray() && candidates.size() > 0) {
 	                return candidates.get(0).path("content").path("parts").get(0).path("text").asText();
 	            } else {
-//	                throw new BadRequestException("Invalid Gemini response: no candidates");
 	                return "";
 	            }
 	        }
 	    }
+	    
+	    public String summarizeEditorContent(String editorJson) throws IOException {
+	        OkHttpClient client = new OkHttpClient();
+	        ObjectMapper mapper = new ObjectMapper();
+
+	        // Prompt with placeholder to inject editor content
+	        String prompt = String.format("""
+	            You are a summarization assistant.
+
+	            Below is the content of a rich text editor in JSON or plain structured format. Summarize the key idea, extract the title if available, and present a concise and meaningful summary in plain English.
+
+	            Content:
+	            ===
+	            %s
+	            ===
+
+	            Instructions:
+	            - If there are tasks or bullet points, briefly summarize their intent or list them clearly.
+	            - Maintain important names, tools, or technical concepts mentioned.
+	            - Make the summary 1–3 sentences long.
+	            - Avoid extra explanation or metadata — just return the clean summary.
+	            """, editorJson);
+
+	        Map<String, Object> requestBody = Map.of(
+	            "contents", new Object[]{
+	                Map.of(
+	                    "parts", new Object[]{
+	                        Map.of("text", prompt)
+	                    }
+	                )
+	            }
+	        );
+
+	        RequestBody body = RequestBody.create(
+	            mapper.writeValueAsString(requestBody),
+	            MediaType.parse("application/json")
+	        );
+
+	        HttpUrl url = HttpUrl.parse(API_URL).newBuilder()
+	                .addQueryParameter("key", apiKey)
+	                .build();
+
+	        Request request = new Request.Builder()
+	                .url(url)
+	                .post(body)
+	                .build();
+
+	        try (Response response = client.newCall(request).execute()) {
+	            String responseBody = response.body().string();
+	            JsonNode root = mapper.readTree(responseBody);
+	            JsonNode candidates = root.path("candidates");
+
+	            if (candidates.isArray() && candidates.size() > 0) {
+	                return candidates.get(0).path("content").path("parts").get(0).path("text").asText();
+	            } else {
+	                return "";
+	            }
+	        }
+	    }
+
 
 }

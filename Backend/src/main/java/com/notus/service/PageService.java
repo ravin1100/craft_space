@@ -205,6 +205,40 @@ public class PageService {
 
 	}
 
+	@Transactional
+	public PageResponse restorePage(Long workspaceId, Long pageId, Long userId) {
+		// Verify workspace exists and user has access
+		workspaceRepository.findActiveWorkspaceByIdAndUserId(workspaceId, userId)
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace", "id", workspaceId));
+		
+		// Find the deleted page
+		Page page = pageRepository.findById(pageId)
+				.orElseThrow(() -> new ResourceNotFoundException("Page", "id", pageId));
+		
+		// Verify the page belongs to the specified workspace
+		if (!page.getWorkspace().getId().equals(workspaceId)) {
+			throw new BadRequestException("Page does not belong to the specified workspace");
+		}
+		
+		// Restore the page by setting deletedAt to null
+		page.setDeletedAt(null);
+		
+		// If the parent was also deleted, move this to root level
+		if (page.getParent() != null && page.getParent().getDeletedAt() != null) {
+			page.setParent(null);
+			
+			// Set a new sort order for the restored page at root level
+			Integer maxSortOrder = pageRepository.findMaxSortOrderByWorkspaceAndParent(workspaceId, null);
+			page.setSortOrder(maxSortOrder != null ? maxSortOrder + 1 : 0);
+		}
+		
+		// Save the restored page
+		page = pageRepository.save(page);
+		
+		// Return the restored page
+		return mapToResponse(page, true);
+	}
+
 	public void updateTags(Long workspaceId, Long pageId, Long id, List<String> tags) {
 		workspaceRepository.findActiveWorkspaceByIdAndUserId(workspaceId, id)
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace", "id", workspaceId));

@@ -69,7 +69,15 @@ public class AIFeatureController {
             context.append(i + 1).append(". ").append(topChunks.get(i).getChunkText()).append("\n\n");
         }
 
-        context.append("User Question: ").append(request.getQuestion());
+        context.append("User Question: ").append(request.getQuestion()).append("\n");
+//        context.append("Instructions:\n");
+////        context.append("- Give human like response.\n");
+//        context.append("- Do not apologize.\n");
+////        context.append("- Do not mention lack of access.\n");
+//        context.append("- If you dont have context then cleary say I don't have any context related to your query and then don't provide any additional information\n");
+//        context.append("- Base your answer only on the input provided.\n");
+//        context.append("- Give answer in markdown format.\n");
+        
 
         // 4. Call Gemini service
         String answer = geminiService.ask(context.toString());

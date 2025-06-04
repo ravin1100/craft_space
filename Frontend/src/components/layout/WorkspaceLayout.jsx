@@ -303,17 +303,9 @@ export default function WorkspaceLayout() {
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
                   className="h-8 w-8 rounded-full bg-gradient-to-r from-orange-400 to-fuchsia-500 flex items-center justify-center text-white font-medium hover:opacity-90 transition-opacity"
                 >
-                  {currentUser.profilePicture ? (
-                    <img 
-                      src={currentUser.profilePicture} 
-                      alt={currentUser.name}
-                      className="h-8 w-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-white font-medium">
-                      {getUserInitial()}
-                    </span>
-                  )}
+                  <span className="text-white font-medium">
+                    {getUserInitial()}
+                  </span>
                 </button>
                 
                 {isProfileOpen && (
@@ -321,13 +313,6 @@ export default function WorkspaceLayout() {
                     <div className="py-1" role="menu" aria-orientation="vertical">
                       <div className="px-4 py-2 border-b border-gray-100">
                         <div className="flex items-center space-x-3">
-                          {currentUser.profilePicture && (
-                            <img 
-                              src={currentUser.profilePicture} 
-                              alt={currentUser.name}
-                              className="h-10 w-10 rounded-full object-cover"
-                            />
-                          )}
                           <div>
                             <p className="text-sm font-medium text-gray-900">
                               {currentUser.name}

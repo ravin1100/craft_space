@@ -5,4 +5,5 @@ import com.notus.entity.User;
 public interface UserService {
     User updateUserProfile(Long userId, String firstName, String lastName, String profilePicture);
     User getUserById(Long userId);
+    void changePassword(Long userId, String currentPassword, String newPassword);
 }

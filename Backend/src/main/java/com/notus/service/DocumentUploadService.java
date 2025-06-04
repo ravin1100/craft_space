@@ -1,8 +1,12 @@
 package com.notus.service;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,30 +39,86 @@ public class DocumentUploadService {
 	@Autowired
 	private TextChunkEmbeddingRepository repository;
 
+//	public void processAndStore(User user) {
+//		List<PageResponse> pages = pageService.getAllPagesByUser(user.getId());
+//
+//		// delete existing entries with the same sourceId
+//		String deleteSql = "DELETE FROM text_chunk_embedding WHERE source_id = ?";
+//		jdbcTemplate.update(deleteSql, user.getId());
+//
+//		for (PageResponse info : pages) {
+//			String summary = "";
+//			String contenetToBeSummarized = "title: " + info.getTitle() + ", tags: "+info.getTags() + ", content: " + info.getContent();
+//			try {
+//				summary = geminiService.summarizeEditorContent(contenetToBeSummarized);
+//			} catch (IOException e) {
+//				e.printStackTrace();
+//				summary = contenetToBeSummarized;
+//			}
+//
+//			Long workSpaceId = info.getWorkspaceId();
+//			Long pageId = info.getId();
+//
+//			List<String> chunks = chunker.chunkText(summary, 500);
+//
+//			for (String chunk : chunks) {
+//				List<Double> vector = embeddingService.getEmbedding(chunk);
+//
+//				// Convert list to pgvector format string: "[0.1, 0.2, 0.3]"
+//				String pgVectorFormat = vector.stream().map(String::valueOf).collect(Collectors.joining(",", "[", "]"));
+//
+//				// Use native SQL with ::vector cast
+//				String inserSqlQuery = "INSERT INTO text_chunk_embedding (chunk_text, source_id, vector, work_space_id, page_id) VALUES (?, ?, ?::vector, ?, ? )";
+//				jdbcTemplate.update(inserSqlQuery, chunk, user.getId(), pgVectorFormat, workSpaceId, pageId);
+//			}
+//		}
+//	}
+	
 	public void processAndStore(User user) {
-		List<PageResponse> pages = pageService.getAllPagesByUser(user.getId());
+		ExecutorService executor = Executors.newFixedThreadPool(10); // or based on CPU cores
 
+		List<Future<Void>> futures = new ArrayList<>();
+		List<PageResponse> pages = pageService.getAllPagesByUser(user.getId());
+		
 		// delete existing entries with the same sourceId
 		String deleteSql = "DELETE FROM text_chunk_embedding WHERE source_id = ?";
 		jdbcTemplate.update(deleteSql, user.getId());
 
 		for (PageResponse info : pages) {
-			Long workSpaceId = info.getWorkspaceId();
-			Long pageId = info.getId();
+		    futures.add(executor.submit(() -> {
+		        try {
+		            String contentToSummarize = "title: " + info.getTitle() + ", tags: " + info.getTags() + ", content: " + info.getContent();
+		            String summary = geminiService.summarizeEditorContent(contentToSummarize);
 
-			List<String> chunks = chunker.chunkText(info.getContent(), 500);
+		            List<String> chunks = chunker.chunkText(summary, 500);
+		            List<Object[]> batchParams = new ArrayList<>();
 
-			for (String chunk : chunks) {
-				List<Double> vector = embeddingService.getEmbedding(chunk);
+		            for (String chunk : chunks) {
+		                List<Double> vector = embeddingService.getEmbedding(chunk);
+		                String pgVectorFormat = vector.stream().map(String::valueOf).collect(Collectors.joining(",", "[", "]"));
+		                batchParams.add(new Object[]{chunk, user.getId(), pgVectorFormat, info.getWorkspaceId(), info.getId()});
+		            }
 
-				// Convert list to pgvector format string: "[0.1, 0.2, 0.3]"
-				String pgVectorFormat = vector.stream().map(String::valueOf).collect(Collectors.joining(",", "[", "]"));
+		            String sql = "INSERT INTO text_chunk_embedding (chunk_text, source_id, vector, work_space_id, page_id) VALUES (?, ?, ?::vector, ?, ?)";
+		            jdbcTemplate.batchUpdate(sql, batchParams);
 
-				// Use native SQL with ::vector cast
-				String inserSqlQuery = "INSERT INTO text_chunk_embedding (chunk_text, source_id, vector, work_space_id, page_id) VALUES (?, ?, ?::vector, ?, ? )";
-				jdbcTemplate.update(inserSqlQuery, chunk, user.getId(), pgVectorFormat, workSpaceId, pageId);
-			}
+		        } catch (Exception e) {
+		            e.printStackTrace(); // log appropriately
+		        }
+		        return null;
+		    }));
 		}
+
+		// Wait for all tasks to finish
+		for (Future<Void> future : futures) {
+		    try {
+				future.get();
+			} catch (InterruptedException | ExecutionException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} // handle exceptions
+		}
+		executor.shutdown();
 	}
 
 	public String processAndStoreForTags(User user, Long pageId, boolean tag) throws IOException {

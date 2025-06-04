@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useWorkspace } from '../../contexts/WorkspaceContext';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import pageService from '../../services/page.service'; // Added for bookmarking
 
 // Utility function for conditional class names
 const cn = (...classes) => classes.filter(Boolean).join(' ');
@@ -23,6 +24,8 @@ const SidebarItem = ({
   isExpanded = false,
   onToggle = () => {},
   onDelete,
+  onToggleFavorite, // New prop
+  isBookmarked, // New prop
   children,
   className = '',
   ...props 
@@ -66,6 +69,20 @@ const SidebarItem = ({
             )}
           </button>
         )}
+        {!isCollapsed && onToggleFavorite && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent page navigation if item is clicked
+              onToggleFavorite(e);
+            }}
+            className={`ml-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity ${
+              isBookmarked ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'
+            }`}
+            title={isBookmarked ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Star size={14} fill={isBookmarked ? 'currentColor' : 'none'} />
+          </button>
+        )}
         {!isCollapsed && onDelete && (
           <button
             onClick={(e) => {
@@ -107,13 +124,15 @@ export default function Sidebar({ isCollapsed, onToggleCollapse, workspaceId, on
     loadPages, 
     workspaces, 
     setCurrentWorkspace, 
-    deletePage 
+    deletePage
   } = useWorkspace();
   const navigate = useNavigate();
   const location = useLocation();
   
   // Use the workspace from props or context
   const workspace = currentWorkspace || contextWorkspace;
+
+  console.log('workspace', workspace, currentWorkspace, contextWorkspace);
   
   // This effect is now handled in WorkspaceContext
   useEffect(() => {
@@ -181,7 +200,9 @@ export default function Sidebar({ isCollapsed, onToggleCollapse, workspaceId, on
   const formattedPages = (pages || []).map(page => ({
     id: page.id,
     title: page.title || 'Untitled',
-    icon: page.isFavorite ? <Star size={18} /> : <FileText size={18} />
+    // The main icon can change based on bookmark status if desired, or use page.iconUrl
+    icon: page.bookmarked ? <Star size={18} className="text-yellow-500" /> : (page.iconUrl ? <img src={page.iconUrl} alt="icon" className="w-4 h-4" /> : <FileText size={18} />),
+    bookmarked: page.bookmarked // Ensure bookmarked status is carried over
   }));
 
   const toggleSection = (section) => {
@@ -212,6 +233,34 @@ export default function Sidebar({ isCollapsed, onToggleCollapse, workspaceId, on
     }
   };
 
+  const handleToggleFavorite = async (e, pageId, currentStatus) => {
+    e.stopPropagation(); // Prevent page navigation
+    if (!workspace || !workspace.id) {
+      toast.error('Workspace context is not available.');
+      return;
+    }
+    const newStatus = !currentStatus;
+    try {
+      // Ensure pageService is imported and configured correctly
+      await pageService.toggleBookmark(workspace.id, pageId, newStatus);
+      toast.success(`Page ${newStatus ? 'added to' : 'removed from'} favorites`);
+      if (loadPages) {
+        loadPages(workspace.id); // Refresh the pages list
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+      let errorMessage = 'Failed to update favorite status.';
+      if (error.response && error.response.data && error.response.data.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response && error.response.statusText) {
+        errorMessage = `Failed: ${error.response.statusText}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      toast.error(errorMessage);
+    }
+  };
+
   // Collapsed sidebar view
   if (isCollapsed) {
     return (
@@ -231,12 +280,12 @@ export default function Sidebar({ isCollapsed, onToggleCollapse, workspaceId, on
             onClick={() => navigate(`/workspace/${workspace?.id}/dashboard`)}
             isCollapsed={true}
           />
-          <SidebarItem
+          {/* <SidebarItem
             icon={<Inbox size={20} />}
             isActive={location.pathname === `/workspace/${workspace?.id}/inbox`}
             onClick={() => navigate(`/workspace/${workspace?.id}/inbox`)}
             isCollapsed={true}
-          />
+          /> */}
           <SidebarItem
             icon={<Star size={20} />}
             isActive={location.pathname === `/workspace/${workspace?.id}/favorites`}
@@ -284,17 +333,15 @@ export default function Sidebar({ isCollapsed, onToggleCollapse, workspaceId, on
               <div className="flex items-center">
                 <h3 
                   className="text-sm font-semibold text-[#111827] cursor-pointer hover:text-blue-600"
-                  onClick={() => setIsWorkspaceMenuOpen(!isWorkspaceMenuOpen)}
+                  onClick={() => {
+                    setIsWorkspaceMenuOpen(false);
+                    if (onOpenCreateWorkspaceModal) {
+                      onOpenCreateWorkspaceModal();
+                    }
+                  }}
                 >
-                  {currentWorkspace?.name || 'My Workspace'}
+                  {currentWorkspace?.name || ''}
                 </h3>
-                <ChevronDown 
-                  size={16} 
-                  className={cn(
-                    'ml-2 text-gray-400 transition-transform',
-                    isWorkspaceMenuOpen ? 'rotate-180' : 'rotate-0'
-                  )}
-                />
               </div>
               
               {/* Workspace menu */}
@@ -378,13 +425,13 @@ export default function Sidebar({ isCollapsed, onToggleCollapse, workspaceId, on
               isActive={location.pathname === `/workspace/${workspace?.id}/dashboard`}
               onClick={() => navigate(`/workspace/${workspace?.id}/dashboard`)}
             />
-            <SidebarItem
+            {/* <SidebarItem
               icon={<Inbox size={18} />}
               label="Inbox"
               count={5}
               isActive={location.pathname === `/workspace/${workspace?.id}/inbox`}
               onClick={() => navigate(`/workspace/${workspace?.id}/inbox`)}
-            />
+            /> */}
           </div>
 
           {/* Pages section */}
@@ -413,6 +460,8 @@ export default function Sidebar({ isCollapsed, onToggleCollapse, workspaceId, on
                     isActive={isPageActive(page.id)}
                     onClick={() => handlePageClick(page.id)}
                     onDelete={(e) => handleDeletePage(e, page.id)}
+                    isBookmarked={page.bookmarked} // Pass bookmarked status
+                    onToggleFavorite={(e) => handleToggleFavorite(e, page.id, page.bookmarked)} // Pass handler
                     className="pl-1"
                   />
                 ))

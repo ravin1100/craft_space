@@ -93,7 +93,8 @@ export function WorkspaceProvider({ children }) {
   
   // Custom setter for current workspace that also updates localStorage
   const setCurrentWorkspace = async (workspace) => {
-    if (workspace) {
+    console.log(workspace,'setCurrentWorkspace')
+    if (workspace?.id) {
       localStorage.setItem('currentWorkspaceId', workspace.id);
       await setCurrentWorkspaceState(workspace);
       // Don't navigate here - let the component handle the navigation

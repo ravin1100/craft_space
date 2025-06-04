@@ -70,7 +70,7 @@ const SmartFeatures = ({
       </div>
       
       {/* Knowledge Graph Button */}
-      <div className="fixed bottom-40 right-6 z-40">
+      {/* <div className="fixed bottom-40 right-6 z-40">
         <button
           onClick={toggleKnowledgeGraph}
           className="w-12 h-12 bg-blue-500 rounded-full shadow-lg flex items-center justify-center text-white hover:bg-blue-600 transition-all duration-200 transform hover:scale-105"
@@ -84,7 +84,7 @@ const SmartFeatures = ({
             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
           </svg>
         </button>
-      </div>
+      </div> */}
       
       {/* Auto-Linker (always active when content changes) */}
       <AutoLinker 
