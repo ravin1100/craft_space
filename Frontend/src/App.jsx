@@ -41,7 +41,7 @@ function PublicRoute({ children }) {
     );
   }
 
-  return !isAuthenticated() ? children : <Navigate to="/workspace/1" replace />;
+  return !isAuthenticated() ? children : <Navigate to="" replace />;
 }
 
 function WorkspaceRoutes() {

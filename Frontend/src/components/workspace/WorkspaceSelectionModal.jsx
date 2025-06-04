@@ -92,6 +92,7 @@ const WorkspaceSelectionModal = ({ isOpen, onClose }) => {
   const handleSelectWorkspace = async (workspace) => {
     try {
       await setCurrentWorkspace(workspace);
+      // localStorage.setItem('currentWorkspaceId', workspace.id); // Redundant: setCurrentWorkspace handles this
       onClose();
       navigate(`/workspace/${workspace.id}`);
     } catch (error) {

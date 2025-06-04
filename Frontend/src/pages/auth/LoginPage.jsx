@@ -45,7 +45,7 @@ export default function LoginPage() {
       // 2. Store the token and user data
       // 3. Show the workspace selection modal
       await login(trimmedEmail, password);
-      
+      navigate('/workspace/1', { replace: true });
       return true;
     } catch (error) {
       console.error('Login error:', {

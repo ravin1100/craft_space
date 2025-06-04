@@ -36,13 +36,13 @@ export default function WorkspaceLayout() {
   console.log('WorkspaceLayout - workspaceId from URL:', workspaceId);
   
   // Redirect to the first workspace if no workspace ID is provided
-  // useEffect(() => {
-  //   if (!workspaceId) {
-  //     // In a real app, you would fetch the first available workspace ID here
-  //     // For now, we'll redirect to a placeholder ID
-  //     navigate('/workspace/1', { replace: true });
-  //   }
-  // }, [workspaceId, navigate]);
+  useEffect(() => {
+    if (!workspaceId) {
+      // In a real app, you would fetch the first available workspace ID here
+      // For now, we'll redirect to a placeholder ID
+      navigate('/workspace/1', { replace: true });
+    }
+  }, [workspaceId, navigate]);
   
   // Use the workspaceId from URL or the one we're redirecting to
   const effectiveWorkspaceId = workspaceId;

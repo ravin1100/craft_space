@@ -25,14 +25,19 @@ export function WorkspaceProvider({ children }) {
     
     try {
       const data = await workspaceService.getUserWorkspaces();
+      console.log(data, 'data')
       if (mounted) {
         setWorkspaces(data);
         
         const savedId = localStorage.getItem('currentWorkspaceId');
-        const matched = data.find(w => w.id === savedId);
+        console.log(savedId, 'savedId')
+        const matched = data.find(w => String(w.id) === savedId);
+        console.log(matched, 'matched')
         if (matched) {
+          localStorage.setItem('currentWorkspaceId', matched.id);
           setCurrentWorkspaceState(matched);
         } else if (data.length > 0) {
+          console.log(data, 'data')
           setCurrentWorkspaceState(data[0]);
           localStorage.setItem('currentWorkspaceId', data[0].id);
         }
@@ -79,7 +84,7 @@ export function WorkspaceProvider({ children }) {
   useEffect(() => {
     const savedWorkspaceId = localStorage.getItem('currentWorkspaceId');
     if (savedWorkspaceId && workspaces.length > 0) {
-      const savedWorkspace = workspaces.find(w => w.id === savedWorkspaceId);
+      const savedWorkspace = workspaces.find(w => String(w.id) === savedWorkspaceId);
       if (savedWorkspace) {
         setCurrentWorkspaceState(savedWorkspace);
       }
