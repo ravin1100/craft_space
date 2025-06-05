@@ -3,7 +3,7 @@ import { toast } from 'react-hot-toast';
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: 'https://rpi.truexplainer.com/api', // Directly point to backend server
+  baseURL: 'http://localhost:8080/api', // Directly point to backend server
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -121,7 +121,8 @@ api.interceptors.response.use(
     }
 
     // Handle 401 Unauthorized
-    if (error.response?.status === 401) {
+    // If it's a 401 AND the specific error handler is NOT skipped by the caller (i.e., global handling is desired)
+    if (error.response?.status === 401 && !error.config?.skipErrorHandler) {
       // Handle token expiration or invalid token
       if (error.config && !error.config.__isRetryRequest) {
         // TODO: Handle token refresh if needed
@@ -132,7 +133,7 @@ api.interceptors.response.use(
       localStorage.removeItem('notion_user');
       window.location.href = '/login';
 
-      toast.error('Session expired. Please login again.');
+      toast.error('Session expired or unauthorized. Please login again.');
       return Promise.reject(error);
     }
 
@@ -143,7 +144,7 @@ api.interceptors.response.use(
     }
 
     // Handle other errors
-    const message = error.response?.data?.message || 'An error occurred';
+    const message = error.response?.data?.debugMessage || error.response?.data?.message || 'An error occurred';
     if (!error.config?.skipErrorHandler) {
       toast.error(message);
     }

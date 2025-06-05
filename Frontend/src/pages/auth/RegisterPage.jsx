@@ -34,7 +34,11 @@ export default function RegisterPage() {
       await register(email, password, name);
       // No need to navigate - AuthContext will handle showing the workspace selection modal
     } catch (error) {
-      setError(error.response?.data?.message || "Registration failed. Please try again.");
+      const errorData = error.response?.data;
+      const displayMessage = errorData?.debugMessage || 
+                             errorData?.message || 
+                             "Registration failed. Please try again.";
+      setError(displayMessage);
     } finally {
       setIsLoading(false);
     }

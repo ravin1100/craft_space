@@ -45,7 +45,8 @@ export default function LoginPage() {
       // 2. Store the token and user data
       // 3. Show the workspace selection modal
       await login(trimmedEmail, password);
-      navigate('/workspace/1', { replace: true });
+      // Navigation will now be handled by PublicRoute redirecting to WorkspaceRoutes,
+      // which will show WorkspaceSelectionModal based on AuthContext state.
       return true;
     } catch (error) {
       console.error('Login error:', {
@@ -55,12 +56,24 @@ export default function LoginPage() {
         error: error
       });
       
-      const errorMessage = error.response?.data?.message || 
-                         error.message || 
-                         'Failed to login. Please try again.';
+      let displayMessage = 'Failed to login. Please try again.'; // Default generic message
+      const errorData = error.response?.data;
+
+      if (error.response && error.response.status === 401) {
+        // For 401, prioritize backend messages, then a specific 401 message
+        displayMessage = errorData?.debugMessage || 
+                         errorData?.message || 
+                         "Invalid email or password. Please try again.";
+      } else if (errorData) {
+        // For other errors with response data, use debugMessage or message
+        displayMessage = errorData.debugMessage || errorData.message || error.message;
+      } else if (error.message) {
+        // For errors without response data but with a message property
+        displayMessage = error.message;
+      }
       
-      setError(errorMessage);
-      toast.error(errorMessage);
+      setError(displayMessage); // Update local error state for display in the form
+      toast.error(displayMessage); // Show toast notification
       return false;
     } finally {
       setIsLoading(false);
@@ -92,11 +105,11 @@ export default function LoginPage() {
               <p className="mt-1 text-gray-600">Sign in to your account</p>
             </div>
 
-            {error && (
+            {/* {error && (
               <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md text-sm">
                 {error}
               </div>
-            )}
+            )} */}
 
             <form ref={formRef} onSubmit={handleFormSubmit} noValidate>
               <div className="space-y-6">

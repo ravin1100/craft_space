@@ -123,6 +123,9 @@ export function WorkspaceProvider({ children }) {
     try {
       const workspace = workspaces.find(w => w.id === workspaceId);
       if (workspace) return workspace;
+      console.log("///////////////////////////////////////////////////")
+      console.log(workspace,'workspace')
+      console.log(workspaceId,'workspaceId')
       
       // If workspace not in local state, try to fetch it
       const data = await workspaceService.getWorkspace(workspaceId);

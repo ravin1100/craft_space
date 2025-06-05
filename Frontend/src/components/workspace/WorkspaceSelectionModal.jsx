@@ -94,7 +94,7 @@ const WorkspaceSelectionModal = ({ isOpen, onClose }) => {
       await setCurrentWorkspace(workspace);
       // localStorage.setItem('currentWorkspaceId', workspace.id); // Redundant: setCurrentWorkspace handles this
       onClose();
-      navigate(`/workspace/${workspace.id}`);
+      navigate(`/workspace/${workspace.id}/dashboard`);
     } catch (error) {
       console.error('Failed to select workspace:', error);
       toast.error('Failed to select workspace');

@@ -323,7 +323,7 @@ export default function Sidebar({ isCollapsed, onToggleCollapse, workspaceId, on
   return (
     <div className="h-full w-64 bg-white border-r border-gray-200 flex flex-col">
       {/* Workspace header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-200 h-16 flex flex-col justify-center">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded bg-gradient-to-r from-orange-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium">

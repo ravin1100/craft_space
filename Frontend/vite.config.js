@@ -9,7 +9,7 @@ export default defineConfig({
     cors: true,
     proxy: {
       '/api': {
-        target: 'https://rpi.truexplainer.com/',
+        target: 'http://localhost:8080/',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => {

@@ -12,15 +12,15 @@ class SmartService {
    * @param {string} content - The text content to analyze
    * @returns {Promise<Array>} - Array of suggested links
    */
-  async getSuggestedLinks(workspaceId, content) {
-    try {
-      const response = await api.post(`/workspaces/${workspaceId}/smart/suggest-links`, { content });
-      return response.data;
-    } catch (error) {
-      console.error('Error getting link suggestions:', error);
-      throw error;
-    }
-  }
+  // async getSuggestedLinks(workspaceId, content) {
+  //   try {
+  //     const response = await api.post(`/workspaces/${workspaceId}/smart/suggest-links`, { content });
+  //     return response.data;
+  //   } catch (error) {
+  //     console.error('Error getting link suggestions:', error);
+  //     // throw error;
+  //   }
+  // }
 
   /**
    * Get knowledge graph data for the workspace

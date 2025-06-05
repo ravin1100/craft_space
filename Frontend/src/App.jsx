@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { WorkspaceProvider, useWorkspace } from "./contexts/WorkspaceContext";
 import { Toaster } from "react-hot-toast";
@@ -13,7 +13,6 @@ import TemplatesPage from "./pages/TemplatesPage";
 import TrashPage from "./pages/TrashPage";
 import SettingsPage from "./pages/SettingsPage";
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import InviteMembers from "./components/workspace/InviteMembers";
 
 function PrivateRoute({ children }) {
@@ -41,13 +40,46 @@ function PublicRoute({ children }) {
     );
   }
 
-  return !isAuthenticated() ? children : <Navigate to="" replace />;
+  return !isAuthenticated() ? children : <Navigate to="/workspace/default" replace />;
+}
+
+function WorkspaceDefaultPage() {
+  const { showWorkspaceModal, setShowWorkspaceModal } = useAuth();
+  const { currentWorkspace, loading: workspaceLoading } = useWorkspace();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (currentWorkspace && !showWorkspaceModal) {
+      // If a workspace is active and modal isn't explicitly shown, go to its dashboard.
+      navigate(`/workspace/${currentWorkspace.id}/dashboard`, { replace: true });
+    } else if (!currentWorkspace && !showWorkspaceModal && !workspaceLoading) {
+      // If no active workspace, modal not shown, and not loading, ensure modal is triggered.
+      // AuthContext also has logic for this, but this is a safeguard for this specific page.
+      console.log("WorkspaceDefaultPage: No current workspace, ensuring modal is shown.");
+      setShowWorkspaceModal(true);
+    }
+  }, [currentWorkspace, showWorkspaceModal, setShowWorkspaceModal, navigate, workspaceLoading]);
+
+  return (
+    <div className="p-6 flex flex-col items-center justify-center h-full text-center">
+      <p className="text-xl text-gray-700 mb-4">
+        {showWorkspaceModal || (!currentWorkspace && !workspaceLoading) 
+          ? "Please select or create a workspace."
+          : "Loading your workspace..."
+        }
+      </p>
+      {(workspaceLoading || (!currentWorkspace && showWorkspaceModal)) && (
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary mt-4"></div>
+      )}
+    </div>
+  );
 }
 
 function WorkspaceRoutes() {
-  const { showWorkspaceModal, setShowWorkspaceModal } = useAuth();
-  const { workspaces, currentWorkspace, loading } = useWorkspace();
+  const { isAuthenticated, showWorkspaceModal, setShowWorkspaceModal, userLoading } = useAuth();
+  const { workspaces, currentWorkspace, fetchWorkspaces, setCurrentWorkspaceById, loading: workspaceLoading, setCurrentWorkspace } = useWorkspace();
   const navigate = useNavigate();
+  const location = useLocation(); // Added for checking current path
   
   // Set initial workspace if not set
   useEffect(() => {
@@ -58,21 +90,35 @@ function WorkspaceRoutes() {
 
   // If no workspaces and not loading, show create workspace modal
   useEffect(() => {
-    if (!loading && workspaces.length === 0 && !showWorkspaceModal) {
+    if (!userLoading && !workspaceLoading && workspaces.length === 0 && !showWorkspaceModal) {
       setShowWorkspaceModal(true);
     }
-  }, [workspaces, loading, showWorkspaceModal, setShowWorkspaceModal]);
+  }, [workspaces, userLoading, workspaceLoading, showWorkspaceModal, setShowWorkspaceModal]);
 
   // Handle modal close
   const handleCloseModal = () => {
-    // Only allow closing if there are workspaces
-    if (workspaces.length > 0) {
-      setShowWorkspaceModal(false);
+    setShowWorkspaceModal(false);
+    // It's assumed that WorkspaceSelectionModal calls setCurrentWorkspace internally upon successful selection/creation
+    // BEFORE it calls this onClose handler.
+    if (currentWorkspace) {
+      navigate(`/workspace/${currentWorkspace.id}/dashboard`, { replace: true });
+    } else {
+      // If modal is closed and there's still no currentWorkspace:
+      if (location.pathname === "/workspace/default" || location.pathname === "/") {
+        // If on the dedicated page for workspace selection, or at root of protected area,
+        // and modal was dismissed without choosing/creating, re-show it.
+        console.warn("Modal closed on /workspace/default without selection. Re-showing modal.");
+        setShowWorkspaceModal(true);
+      } else {
+        // If elsewhere, this is an unexpected state. Log it.
+        // AuthContext should generally handle redirecting to /workspace/default if no workspace is active.
+        console.warn("Modal closed without current workspace on an unexpected page:", location.pathname);
+      }
     }
   };
 
   return (
-    <WorkspaceProvider>
+    <>
       <WorkspaceSelectionModal 
         isOpen={showWorkspaceModal} 
         onClose={handleCloseModal} 
@@ -97,11 +143,32 @@ function WorkspaceRoutes() {
           <Route path="dashboard" element={<Navigate to="workspace" replace />} />
           
           {/* Default redirects */}
-          <Route index element={<Navigate to="workspace" replace />} />
-          <Route path="*" element={<Navigate to="workspace" replace />} />
+          {/* Dynamic dashboard route that captures workspaceId */}
+          <Route path="workspace/default" element={<WorkspaceDefaultPage />} />
+
+          <Route path="workspace/:workspaceId">
+            <Route index element={<WorkspaceDashboard />} />
+            <Route path="page/:pageId" element={<PageView />} />
+            <Route path="dashboard" element={<WorkspaceDashboard />} />
+            {/* Other routes */}
+            <Route path="inbox" element={<div className="p-6">Inbox Content</div>} />
+            <Route path="favorites" element={<div className="p-6">Favorites</div>} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="templates" element={<TemplatesPage />} />
+            <Route path="trash" element={<TrashPage />} />
+            <Route path="invite" element={<InviteMembers />} />
+          </Route>
+          
+          {/* Redirect /dashboard to the /workspace/default to handle modal logic */}
+          <Route path="dashboard" element={<Navigate to="/workspace/default" replace />} />
+          
+          {/* Default redirect for the root of WorkspaceRoutes to /workspace/default */}
+          <Route index element={<Navigate to="workspace/default" replace />} />
+          {/* Consider a more specific catch-all or a 404 component within WorkspaceLayout */}
+          {/* <Route path="*" element={<Navigate to="workspace/default" replace />} /> */}
         </Route>
       </Routes>
-    </WorkspaceProvider>
+    </>
   );
 }
 

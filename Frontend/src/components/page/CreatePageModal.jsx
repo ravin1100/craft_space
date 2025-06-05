@@ -17,7 +17,7 @@ const CreatePageModal = ({ isOpen, onClose, onPageCreated, workspaceId: propWork
   useEffect(() => {
     if (!workspaceId) {
       console.error('No workspace ID available in CreatePageModal');
-      toast.error('No workspace selected');
+      // toast.error('No workspace selected');
       onClose();
     }
   }, [workspaceId, onClose]);

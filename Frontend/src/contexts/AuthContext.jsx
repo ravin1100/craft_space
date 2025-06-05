@@ -25,6 +25,40 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
+  // Verify session with backend
+  useEffect(() => {
+    const verifySession = async () => {
+      const token = authService.getToken();
+      if (token && !user) { // Only run if token exists but user is not yet set by initial effect, or to re-validate
+        console.log('AuthContext: Verifying session with backend using /api/users/me');
+        setLoading(true);
+        try {
+          const currentUser = await authService.getMe();
+          console.log('AuthContext: Session verified, user data:', currentUser);
+          setUser(currentUser);
+          // If user data from /me is different from localStorage, update localStorage
+          if (JSON.stringify(currentUser) !== JSON.stringify(authService.getUser())) {
+            authService.setUser(currentUser);
+          }
+        } catch (error) {
+          console.error('AuthContext: Session verification failed', error.response?.status);
+          if (error.response && error.response.status === 403) {
+            console.log('AuthContext: Received 403, logging out.');
+            await logout(); // logout already navigates to '/'
+          } else {
+            // For other errors (e.g., network), you might want to clear user or handle differently
+            // For now, we'll just log it and potentially clear the user if appropriate
+            // setUser(null); // Or keep stale user data and let them try to interact
+            console.error('AuthContext: Error during session verification, not a 403:', error);
+          }
+        }
+        setLoading(false);
+      }
+    };
+
+    verifySession();
+  }, []); // Run once on mount, or consider dependencies if needed
+
   const isAuthenticated = () => {
     return !!authService.getToken();
   };
@@ -32,7 +66,7 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     try {
       console.log('AuthContext: Starting login process');
-      const data = await authService.login(email, password);
+      const data = await authService.login(email, password, { skipErrorHandler: true });
       console.log('AuthContext: Login successful, received data:', data);
       
       // Ensure we have user data before setting it
@@ -83,7 +117,7 @@ export function AuthProvider({ children }) {
       return data;
     } catch (error) {
       console.error("Registration error:", error);
-      toast.error(error.response?.data?.message || "Failed to register");
+      // toast.error(error.response?.data?.debugMessage || "Failed to register");
       throw error;
     }
   };
@@ -97,7 +131,7 @@ export function AuthProvider({ children }) {
         window.clearWorkspace();
       }
       navigate("/");
-      toast.success("Logged out successfully");
+      // toast.success("Logged out successfully");
     } catch (error) {
       console.error("Logout error:", error);
       toast.error("Failed to logout");

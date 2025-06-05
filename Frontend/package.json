@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -38,6 +38,7 @@
     "lexical": "^0.31.2",
     "lodash": "^4.17.21",
     "lucide-react": "^0.292.0",
+    "marked": "^15.0.12",
     "novel": "^1.0.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

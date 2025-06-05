@@ -83,17 +83,19 @@ export default function PageView() {
   const debouncedSave = useDebouncedCallback(async (content) => {
     try {
       const json = content.getJSON();
+      const actualContent = content.getText() || "";
       console.log(JSON.stringify(json), "jjjjjjjj");
       await workspaceService.updatePage(workspaceId, pageId, {
         title: page.title,
         content: JSON.stringify(json),
+        textContent: actualContent,
       });
       console.log("Auto-saved content");
     } catch (error) {
       console.error("Failed to auto-save page:", error);
       toast.error("Failed to auto-save page");
     }
-  }, 5000);
+  }, 2000);
 
   // Handle tag updates
   const handleTagsUpdate = useCallback(async (newTags) => {

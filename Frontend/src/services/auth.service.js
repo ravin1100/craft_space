@@ -4,13 +4,14 @@ const TOKEN_KEY = 'notion_token';
 const USER_KEY = 'notion_user';
 
 class AuthService {
-  async login(email, password) {
+  async login(email, password, axiosConfig = {}) {
     try {
       console.log('AuthService: Sending login request to /api/auth/login');
       const response = await api.post('/auth/login', { 
         email: email.trim(),
         password: password
       }, {
+        ...axiosConfig, // Merge incoming config
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
@@ -77,12 +78,27 @@ class AuthService {
   }
 
   async logout() {
-    try {
-      await api.post('/auth/logout');
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
+    // try {
+    //   await api.post('/auth/logout');
+    // } catch (error) {
+    //   console.error('Logout error:', error);
+    // } finally {
       this.clearAuth();
+    // }
+  }
+
+  async getMe() {
+    try {
+      console.log('AuthService: Fetching current user with /api/users/me');
+      const response = await api.get('/users/me');
+      console.log('AuthService: /api/users/me response received', response.data);
+      // Optionally update user in localStorage if it's different or more up-to-date
+      // this.setUser(response.data); 
+      return response.data;
+    } catch (error) {
+      console.error('AuthService: Error fetching /api/users/me', error.response?.status, error.response?.data);
+      // Do not clearAuth here, let AuthContext handle it based on status
+      throw error; 
     }
   }
 
@@ -112,9 +128,24 @@ class AuthService {
 
   getUser() {
     const userStr = localStorage.getItem(USER_KEY);
-    const user = userStr ? JSON.parse(userStr) : null;
-    console.log('AuthService: Retrieved user from localStorage:', user);
-    return user;
+    console.log('AuthService: Raw user string from localStorage:', userStr);
+    if (userStr && userStr !== 'undefined' && userStr !== 'null') {
+      try {
+        const user = JSON.parse(userStr);
+        console.log('AuthService: Parsed user from localStorage:', user);
+        return user;
+      } catch (e) {
+        console.error('AuthService: Error parsing user from localStorage. String was:', userStr, e);
+        this.clearAuth(); // Clear potentially corrupted auth data
+        return null;
+      }
+    }
+    // If userStr is null, 'undefined', or 'null' (as strings), return null
+    if (userStr === 'undefined' || userStr === 'null') {
+        console.warn('AuthService: user_key in localStorage was "undefined" or "null" string. Clearing auth.');
+        this.clearAuth(); // Clear potentially corrupted auth data
+    }
+    return null;
   }
 
   clearAuth() {
