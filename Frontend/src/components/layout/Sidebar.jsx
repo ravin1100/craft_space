@@ -196,14 +196,21 @@ export default function Sidebar({ isCollapsed, onToggleCollapse, workspaceId, on
     }
   };
 
-  // Format pages for display
-  const formattedPages = (pages || []).map(page => ({
-    id: page.id,
-    title: page.title || 'Untitled',
-    // The main icon can change based on bookmark status if desired, or use page.iconUrl
-    icon: page.bookmarked ? <Star size={18} className="text-yellow-500" /> : (page.iconUrl ? <img src={page.iconUrl} alt="icon" className="w-4 h-4" /> : <FileText size={18} />),
-    bookmarked: page.bookmarked // Ensure bookmarked status is carried over
-  }));
+  // Search state for filtering pages
+  const [search, setSearch] = useState("");
+
+  // Format pages for display and filter by search
+  const formattedPages = (pages || [])
+    .map(page => ({
+      id: page.id,
+      title: page.title || 'Untitled',
+      // The main icon can change based on bookmark status if desired, or use page.iconUrl
+      icon: page.bookmarked ? <Star size={18} className="text-yellow-500" /> : (page.iconUrl ? <img src={page.iconUrl} alt="icon" className="w-4 h-4" /> : <FileText size={18} />),
+      bookmarked: page.bookmarked // Ensure bookmarked status is carried over
+    }))
+    .filter(page =>
+      page.title.toLowerCase().includes(search.toLowerCase())
+    );
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -408,7 +415,9 @@ export default function Sidebar({ isCollapsed, onToggleCollapse, workspaceId, on
           </div>
           <input
             type="text"
-            placeholder="Search"
+            placeholder="Search Page"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
             className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
           />
         </div>

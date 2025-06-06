@@ -34,6 +34,8 @@ const WorkspaceDashboard = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [userQuestion, setUserQuestion] = useState('');
   const [hasUploadedFiles, setHasUploadedFiles] = useState(false);
+  const [graphLoading, setGraphLoading] = useState(false);
+  const [graphData, setGraphData] = useState(null); // { nodes: [], edges: [] }
   const fileInputRef = useRef(null);
   const chatContainerRef = useRef(null);
 
@@ -451,7 +453,7 @@ const WorkspaceDashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <button
             onClick={handleCreatePage}
             className="flex items-center gap-3 p-4 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-lg hover:opacity-90 transition-all shadow-md"
@@ -490,6 +492,42 @@ const WorkspaceDashboard = () => {
               <p className="text-sm text-white/80">Invite team members</p>
             </div>
           </button>
+
+          {/* <button
+            onClick={async () => {
+              setGraphLoading(true);
+              setGraphData(null);
+              try {
+                // 1. POST to upload
+                const uploadRes = await fetch('http://localhost:8080/api/ai/upload', {
+                  method: 'POST',
+                });
+                if (!uploadRes.ok) throw new Error('Upload failed');
+                toast.success('Data uploaded successfully');
+                // 2. GET the graph
+                const graphRes = await fetch(`http://localhost:8080/api/ai/graph?workspaceId=${workspaceId}`);
+                if (!graphRes.ok) throw new Error('Failed to fetch knowledge graph');
+                const graphJson = await graphRes.json();
+                setGraphData(graphJson);
+                toast.success('Knowledge graph generated!');
+              } catch (err) {
+                toast.error('Knowledge graph generation failed');
+              } finally {
+                setGraphLoading(false);
+              }
+            }}
+            className={`flex items-center gap-3 p-4 bg-gradient-to-r from-purple-500 to-orange-500 text-white rounded-lg border-4 border-dashed border-red-500 hover:opacity-90 transition-all shadow-md ${graphLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
+            disabled={graphLoading}
+          >
+            <div className="p-2 bg-white/20 rounded-md">
+              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <div className="text-left">
+              <h3 className="font-medium">Generate Knowledge Graph</h3>
+              <p className="text-sm text-white/80">AI-powered knowledge extraction</p>
+              {graphLoading && <span className="text-xs text-white/70">Generating...</span>}
+            </div>
+          </button> */}
         </div>
 
         {/* Recent Pages */}

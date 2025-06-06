@@ -515,7 +515,7 @@ export default function SettingsPage() {
               </div>
               
               {/* Workspace Icon */}
-              <div className="mb-4">
+              {/* <div className="mb-4">
                 <label htmlFor="icon" className="block text-sm font-medium text-gray-700 mb-1">
                   Workspace Icon (emoji)
                 </label>
@@ -529,10 +529,10 @@ export default function SettingsPage() {
                   maxLength={2}
                   placeholder="📝"
                 />
-              </div>
+              </div> */}
               
               {/* Default Page Template */}
-              <div className="mb-6">
+              {/* <div className="mb-6">
                 <label htmlFor="defaultPageTemplate" className="block text-sm font-medium text-gray-700 mb-1">
                   Default Page Template
                 </label>
@@ -548,7 +548,7 @@ export default function SettingsPage() {
                   <option value="todo">To-Do List</option>
                   <option value="document">Document</option>
                 </select>
-              </div>
+              </div> */}
               
               {/* Submit Button */}
               <div className="flex justify-end">

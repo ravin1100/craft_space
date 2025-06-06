@@ -155,7 +155,7 @@ export default function WorkspaceLayout() {
         ]);
       } catch (error) {
         console.error('Error initializing AI assistant:', error);
-        toast.error('Failed to initialize AI assistant');
+        toast.error('Failed to initialize ');
       } finally {
         setIsAiLoading(false);
       }
@@ -393,7 +393,7 @@ export default function WorkspaceLayout() {
         
         {/* AI Assistant Chat Modal */}
         {isAiAssistantOpen && (
-          <div className="fixed bottom-24 right-6 w-96 h-[500px] bg-white rounded-lg shadow-2xl flex flex-col z-50 overflow-hidden border border-gray-200">
+          <div className="fixed bottom-24 right-6 w-96 h-[500px] bg-white rounded-lg shadow-2xl flex flex-col z-100 overflow-hidden border border-gray-200">
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
               <h3 className="text-md font-semibold text-gray-800 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-500">

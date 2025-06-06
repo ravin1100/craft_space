@@ -216,7 +216,7 @@ const AutoTagGenerator = ({ content, pageId, existingTags = [], onTagsUpdate, is
       </div>
       
       {/* AI Tags Section */}
-      {aiTags.length > 0 && (
+      {isVisible && aiTags.length > 0 && (
         <div className="bg-purple-50 border border-purple-100 rounded-md p-3 mt-3 mb-3">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium text-purple-800 flex items-center">
@@ -224,22 +224,13 @@ const AutoTagGenerator = ({ content, pageId, existingTags = [], onTagsUpdate, is
               AI Generated Tags
             </h4>
             <button
-              onClick={() => {
-                // Add all AI tags that aren't already selected
-                const newTags = [...new Set([...selectedTags, ...aiTags])];
-                setSelectedTags(newTags);
-                if (onTagsUpdate) {
-                  onTagsUpdate(newTags);
-                }
-                toast.success('AI tags applied');
-              }}
-              className="text-xs bg-purple-500 text-white px-2 py-1 rounded-md flex items-center"
+              onClick={() => setIsVisible(false)}
+              className="text-purple-500 hover:text-purple-700 p-1 rounded-full ml-2"
+              aria-label="Close AI Tags"
             >
-              <Check size={12} className="mr-1" />
-              Apply All
+              <X size={16} />
             </button>
           </div>
-          
           <div className="flex flex-wrap gap-2">
             {aiTags.map((tag, index) => (
               <button

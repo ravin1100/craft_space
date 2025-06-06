@@ -8,6 +8,7 @@ import editorService from "../services/editor.service";
 import smartService from "../services/smart.service";
 import PageEditor from "../editors/PageEditor";
 import TailwindAdvancedEditor from "../components/novel/advanced-editor";
+import AutoTagGenerator from "../components/smart/AutoTagGenerator";
 
 export default function PageView() {
   const { workspaceId, pageId } = useParams();
@@ -160,29 +161,15 @@ export default function PageView() {
           placeholder="Untitled"
         />
         
-        {/* Tags display */}
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {tags.map((tag, index) => (
-              <span 
-                key={index} 
-                className="inline-flex items-center bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full"
-              >
-                <Tag size={12} className="mr-1 text-gray-500" />
-                {tag}
-                <button 
-                  onClick={() => removeTag(tag)} 
-                  className="ml-1 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        
         <div className="h-px bg-border w-full"></div>
       </div>
+      {/* Auto Tag Generator restored below title/tags */}
+      <AutoTagGenerator
+        content={page?.content}
+        pageId={pageId}
+        existingTags={tags}
+        onTagsUpdate={setTags}
+      />
       <TailwindAdvancedEditor
         content={page?.content ?? null}
         onUpdate={handleSave}

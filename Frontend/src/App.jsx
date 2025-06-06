@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams, useLocation,
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { WorkspaceProvider, useWorkspace } from "./contexts/WorkspaceContext";
 import { Toaster } from "react-hot-toast";
+import KnowledgeGraphFab from "./components/KnowledgeGraphFab";
 import WorkspaceLayout from "./components/layout/WorkspaceLayout";
 import WorkspaceSelectionModal from "./components/workspace/WorkspaceSelectionModal";
 import LandingPage from "./pages/LandingPage";
@@ -231,6 +232,7 @@ export default function App() {
       <AuthProvider>
         <WorkspaceProvider>
           <AppContent />
+          <KnowledgeGraphFab />
           <Toaster position="bottom-right" />
         </WorkspaceProvider>
       </AuthProvider>
