@@ -36,10 +36,25 @@ public class TextChunkEmbeddingRepositoryCustomImpl implements TextChunkEmbeddin
 		List<TextChunkEmbedding> results = query.getResultList();
 		return results;
 	}
+	
+	@Override
+	@SuppressWarnings("unchecked")
+	public List<TextChunkEmbedding> findSimilarByVectorInPage(List<Double> vector, Long pageId) {
+		String vectorString = vector.stream().map(String::valueOf).collect(Collectors.joining(", ", "[", "]"));
+		
+		String selectQuery = """
+			    SELECT * FROM text_chunk_embedding
+			    WHERE (:pageId IS NULL OR page_id = :pageId)
+			    ORDER BY vector <-> CAST(:vectorString AS vector)
+			    LIMIT 3
+			    """;
 
-	public List<String> findAllUniqueSourceIds() {
-		String sql = "SELECT DISTINCT source FROM chunk_embedding";
-		return jdbcTemplate.queryForList(sql, String.class);
+		Query query = entityManager.createNativeQuery(selectQuery, TextChunkEmbedding.class);
+		query.setParameter("pageId", pageId);
+		query.setParameter("vectorString", vectorString);
+
+		List<TextChunkEmbedding> results = query.getResultList();
+		return results;
 	}
 
 	@Override

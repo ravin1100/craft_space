@@ -102,7 +102,7 @@ public class DocumentUploadService {
 		}
 
 		// Call the custom repository method
-		List<TextChunkEmbedding> topChunks = repository.findSimilarByVector(queryVector, user.getId());
+		List<TextChunkEmbedding> topChunks = repository.findSimilarByVectorInPage(queryVector, pageId);
 		// Call the custom repository method
 //        List<TextChunkEmbedding> pageChunks = repository.findEmbeddingsOfPage(user.getId(), pageId);
 
