@@ -30,4 +30,18 @@ public class EmbeddingService {
 	        return embeddings.get(0); // First vector
 	    }
 	
+	    
+	    public double[] convertStringToDoubleVector(String vectorStr) {
+	        // Remove square brackets if present
+	        vectorStr = vectorStr.replace("[", "").replace("]", "").trim();
+
+	        String[] parts = vectorStr.split(",");
+	        double[] vector = new double[parts.length];
+
+	        for (int i = 0; i < parts.length; i++) {
+	            vector[i] = Double.parseDouble(parts[i].trim());
+	        }
+
+	        return vector;
+	    }
 }

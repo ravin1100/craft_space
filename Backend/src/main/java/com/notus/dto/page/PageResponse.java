@@ -16,6 +16,7 @@ public class PageResponse {
     private Long id;
     private String title;
     private String content;
+    private String textContent;
     private String iconUrl;
     private Long workspaceId;
     private Long parentId;

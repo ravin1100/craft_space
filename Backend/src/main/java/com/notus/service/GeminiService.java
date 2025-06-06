@@ -61,7 +61,7 @@ public class GeminiService {
 	            if (candidates.isArray() && candidates.size() > 0) {
 	                return candidates.get(0).path("content").path("parts").get(0).path("text").asText();
 	            } else {
-	                return "";
+	                return "Oops! I couldn't generate a response. Please try again.";
 	            }
 	        }
 	    }

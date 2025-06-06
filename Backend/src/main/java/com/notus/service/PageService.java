@@ -31,6 +31,7 @@ public class PageService {
 		Page page = new Page();
 		page.setTitle(request.getTitle());
 		page.setContent(request.getContent());
+		page.setTextContent(request.getTextContent());
 		page.setIconUrl(request.getIconUrl());
 		page.setWorkspace(workspace);
 
@@ -100,6 +101,7 @@ public class PageService {
 
 		page.setTitle(request.getTitle());
 		page.setContent(request.getContent());
+		page.setTextContent(request.getTextContent());
 		page.setIconUrl(request.getIconUrl());
 
 		if (request.getParentId() != null
@@ -161,7 +163,7 @@ public class PageService {
 						.map(child -> mapToResponse(child, false)).collect(Collectors.toList())
 				: null;
 
-		return PageResponse.builder().id(page.getId()).title(page.getTitle()).content(page.getContent())
+		return PageResponse.builder().id(page.getId()).title(page.getTitle()).content(page.getContent()).textContent(page.getTextContent())
 				.iconUrl(page.getIconUrl()).workspaceId(page.getWorkspace().getId())
 				.parentId(page.getParent() != null ? page.getParent().getId() : null).children(children)
 				.sortOrder(page.getSortOrder())
@@ -184,7 +186,7 @@ public class PageService {
 
 	public List<PageResponse> getAllPagesByUser(Long userId) {
 
-		List<Page> pages = pageRepository.findAllByWorkspaceOwnerId(userId);
+		List<Page> pages = pageRepository.findAllNonDeletedPagesOfUser(userId);
 
 		return pages.stream().map(page -> mapToResponse(page, false)).collect(Collectors.toList());
 	}

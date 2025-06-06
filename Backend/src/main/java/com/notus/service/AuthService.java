@@ -19,8 +19,10 @@ import com.notus.dto.auth.SignupRequest;
 import com.notus.dto.auth.VerifyOtpRequest;
 import com.notus.entity.OtpVerification;
 import com.notus.entity.User;
+import com.notus.entity.Workspace;
 import com.notus.repository.OtpVerificationRepository;
 import com.notus.repository.UserRepository;
+import com.notus.repository.WorkspaceRepository;
 import com.notus.security.JwtTokenProvider;
 import com.notus.security.UserPrincipal;
 
@@ -39,6 +41,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final EmailService emailService;
     private final UserDetailsService userDetailsService;
+    private final WorkspaceRepository workspaceRepository;
 
     @Transactional
     public AuthResponse signup(SignupRequest request) {
@@ -55,7 +58,7 @@ public class AuthService {
             user.setEmail(request.getEmail());
             user.setPassword(passwordEncoder.encode(request.getPassword()));
             user.setEmailVerified(true);
-            userRepository.save(user);
+            User savedUser = userRepository.save(user);
             log.debug("User created successfully: {}", user.getEmail());
 
             String otp = generateOtp();
@@ -76,7 +79,16 @@ public class AuthService {
             LoginRequest loginRequest =  new LoginRequest();
             loginRequest.setEmail(request.getEmail());
             loginRequest.setPassword(request.getPassword());
-            return this.login(loginRequest);
+            
+            AuthResponse response = this.login(loginRequest);
+            
+            Workspace workspace = new Workspace();
+            workspace.setName("Default Workspace");
+            workspace.setOwner(savedUser);
+
+            workspace = workspaceRepository.save(workspace);
+            response.setWorkspaceId(workspace.getId());
+            return response;
         } catch (Exception e) {
             log.error("Error during signup process for email: {}", request.getEmail(), e);
             throw e;

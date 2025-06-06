@@ -26,6 +26,9 @@ public class Page {
 
     @Column(columnDefinition = "TEXT")
     private String content;
+    
+    @Column(columnDefinition = "TEXT")
+    private String textContent;
 
     @Column(name = "icon_url")
     private String iconUrl;

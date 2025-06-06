@@ -10,4 +10,8 @@ public interface TextChunkEmbeddingRepositoryCustom {
 
 	List<TextChunkEmbedding> findEmbeddingsOfPage(Long sourceId, Long pageId);
 	
+	List<TextChunkEmbedding> findByWorkSpaceId(Long workspaceId);
+	
+	
+	
 }

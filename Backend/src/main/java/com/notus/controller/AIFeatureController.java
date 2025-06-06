@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.notus.dto.KnowledgeGraphResponse;
 import com.notus.dto.request.QueryRequest;
 import com.notus.entity.TextChunkEmbedding;
 import com.notus.entity.User;
@@ -23,6 +24,7 @@ import com.notus.service.ContextService;
 import com.notus.service.DocumentUploadService;
 import com.notus.service.EmbeddingService;
 import com.notus.service.GeminiService;
+import com.notus.service.KnowledgeGraphBuilderService;
 
 
 @RestController
@@ -44,6 +46,9 @@ public class AIFeatureController {
     @Autowired
     private ContextService ContextService;
     
+    @Autowired
+    private KnowledgeGraphBuilderService graphService;
+    
     @PostMapping("/upload")
     public ResponseEntity<String> uploadDocument() throws BadRequestException {
     	User currentUser = ContextService.getCurrentUser();
@@ -57,29 +62,22 @@ public class AIFeatureController {
     	User currentUser = ContextService.getCurrentUser();
     	Long source = currentUser.getId();
     	
-    	// 1. Get vector for query using Python service
+    	// Embedding Service
         List<Double> queryVector = embeddingService.getEmbedding(request.getQuestion());
 
         // Call the custom repository method
         List<TextChunkEmbedding> topChunks = repository.findSimilarByVector(queryVector, source);
 
-        // 3. Build context from those chunks
+        // Build context from those text chunks
         StringBuilder context = new StringBuilder("Context:\n");
         for (int i = 0; i < topChunks.size(); i++) {
             context.append(i + 1).append(". ").append(topChunks.get(i).getChunkText()).append("\n\n");
         }
 
         context.append("User Question: ").append(request.getQuestion()).append("\n");
-//        context.append("Instructions:\n");
-////        context.append("- Give human like response.\n");
-//        context.append("- Do not apologize.\n");
-////        context.append("- Do not mention lack of access.\n");
-//        context.append("- If you dont have context then cleary say I don't have any context related to your query and then don't provide any additional information\n");
-//        context.append("- Base your answer only on the input provided.\n");
-//        context.append("- Give answer in markdown format.\n");
+        context.append("Instructions:\n");
+        context.append("- Base your answer only on the context provided.\n");
         
-
-        // 4. Call Gemini service
         String answer = geminiService.ask(context.toString());
 
         return ResponseEntity.ok(answer);
@@ -97,4 +95,9 @@ public class AIFeatureController {
         return ResponseEntity.ok(chunkStorageService.processAndStoreForTags(currentUser, pageId, false));
     }
     
+    @GetMapping("/graph")
+    public KnowledgeGraphResponse getGraph(@RequestParam Long workspaceId,
+                                           @RequestParam(defaultValue = "0.2") double threshold) {
+        return graphService.buildGraph(workspaceId, threshold);
+    }
 }

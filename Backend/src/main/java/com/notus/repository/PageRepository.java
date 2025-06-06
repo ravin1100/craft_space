@@ -25,7 +25,14 @@ public interface PageRepository extends JpaRepository<Page, Long> {
     @Query("SELECT MAX(p.sortOrder) FROM Page p WHERE p.workspace.id = :workspaceId AND p.parent.id = :parentId AND p.deletedAt IS NULL")
     Integer findMaxSortOrderByWorkspaceAndParent(Long workspaceId, Long parentId);
 
-	List<Page> findAllByWorkspaceOwnerId(Long userId);
+//	List<Page> findAllByWorkspaceOwnerId(Long userId);
+	
+	@Query("SELECT p FROM Page p " +
+		       "WHERE p.workspace.owner.id = :userId " +
+		       "AND p.deletedAt IS NULL " +
+		       "AND p.workspace.deletedAt IS NULL")
+	List<Page> findAllNonDeletedPagesOfUser(Long userId);
+
 	
 	@Query("SELECT p FROM Page p WHERE p.workspace.id = :workspaceId AND p.parent IS NULL AND p.deletedAt IS NOT NULL ORDER BY p.sortOrder")
     List<Page> findSoftDeletedRootPagesByWorkspaceId(Long workspaceId);

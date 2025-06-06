@@ -17,4 +17,6 @@ public class PageRequest {
     private Long parentId;
 
     private Integer sortOrder;
+    
+    private String textContent;
 } 

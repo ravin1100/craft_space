@@ -36,26 +36,33 @@ public class TextChunkEmbeddingRepositoryCustomImpl implements TextChunkEmbeddin
 		List<TextChunkEmbedding> results = query.getResultList();
 		return results;
 	}
-	
-	
 
 	public List<String> findAllUniqueSourceIds() {
 		String sql = "SELECT DISTINCT source FROM chunk_embedding";
 		return jdbcTemplate.queryForList(sql, String.class);
 	}
-	
+
 	@Override
 	@SuppressWarnings("unchecked")
 	public List<TextChunkEmbedding> findEmbeddingsOfPage(Long sourceId, Long pageId) {
-	    String sql = "SELECT * FROM text_chunk_embedding " +
-	                 "WHERE source_id = :sourceId AND page_id = :pageId";
+		String sql = "SELECT * FROM text_chunk_embedding " + "WHERE source_id = :sourceId AND page_id = :pageId";
 
-	    Query query = entityManager.createNativeQuery(sql, TextChunkEmbedding.class);
-	    query.setParameter("sourceId", sourceId);
-	    query.setParameter("pageId", pageId);
+		Query query = entityManager.createNativeQuery(sql, TextChunkEmbedding.class);
+		query.setParameter("sourceId", sourceId);
+		query.setParameter("pageId", pageId);
 
-	    return query.getResultList();
+		return query.getResultList();
 	}
 
+	@Override
+	@SuppressWarnings("unchecked")
+	public List<TextChunkEmbedding> findByWorkSpaceId(Long workspaceId) {
+		String sql = "SELECT * FROM text_chunk_embedding " + "WHERE work_space_id = :workspaceId";
+
+		Query query = entityManager.createNativeQuery(sql, TextChunkEmbedding.class);
+		query.setParameter("workspaceId", workspaceId);
+
+		return query.getResultList();
+	}
 
 }

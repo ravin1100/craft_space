@@ -17,4 +17,5 @@ public class AuthResponse {
     private String email;
     private boolean emailVerified;
     private String message;
+    private Long workspaceId;
 } 
