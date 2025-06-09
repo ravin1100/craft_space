@@ -71,7 +71,13 @@
     </logger>
 
     <!-- Root Logger -->
-    <root level="INFO">
+    <!-- <root level="INFO"> -->
+        <!-- <appender-ref ref="Console" /> -->
+        <!-- <appender-ref ref="RollingFile" /> -->
+        <!-- <appender-ref ref="ErrorFile" /> -->
+    <!-- </root> -->
+    <!-- Root Logger -->
+    <root level="OFF">
         <appender-ref ref="Console" />
         <appender-ref ref="RollingFile" />
         <appender-ref ref="ErrorFile" />

@@ -2,7 +2,10 @@ package com.notus.service;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -113,7 +116,74 @@ public class DocumentUploadService {
 
 		String answer = geminiService
 				.ask((tag == true) ? context.append(tagPrompt).toString() : context.append(summaryPrompt).toString());
-		return answer;
+//		return answer;
+		
+		
+		if (tag) {
+			// Split the answer into tags
+			String[] generatedTags = answer.split(",");
+
+			// Step 1: Compute embedding of full page (average of chunk embeddings)
+			List<List<Double>> allEmbeddings = new ArrayList<>();
+			for (String chunk : chunks) {
+				allEmbeddings.add(embeddingService.getEmbedding(chunk));
+			}
+
+			// Average vector for full page
+			List<Double> pageVector = averageVectors(allEmbeddings);
+
+			// Step 2: Compare each tag vector to page vector and compute similarity
+			Map<String, Double> tagRelevanceMap = new LinkedHashMap<>();
+			for (String rawTag : generatedTags) {
+				String tagText = rawTag.trim();
+				List<Double> tagVector = embeddingService.getEmbedding(tagText);
+				double similarity = cosineSimilarity(tagVector, pageVector);
+				double percentage = similarity * 100;
+				tagRelevanceMap.put(tagText, percentage);
+			}
+
+			// Optionally print or return this
+			StringBuilder sb = new StringBuilder();
+			for (Map.Entry<String, Double> entry : tagRelevanceMap.entrySet()) {
+				sb.append("Tag: " + entry.getKey() + " | Relevance: " + String.format("%.2f", entry.getValue()) + "%");
+				sb.append("/n");
+			}
+			return sb.toString();
+		}
+		return "";
+		
 	}
+	
+	private List<Double> averageVectors(List<List<Double>> vectors) {
+		int size = vectors.get(0).size();
+		List<Double> avg = new ArrayList<>(Collections.nCopies(size, 0.0));
+
+		for (List<Double> vec : vectors) {
+			for (int i = 0; i < size; i++) {
+				avg.set(i, avg.get(i) + vec.get(i));
+			}
+		}
+
+		for (int i = 0; i < size; i++) {
+			avg.set(i, avg.get(i) / vectors.size());
+		}
+		return avg;
+	}
+
+	private double cosineSimilarity(List<Double> vec1, List<Double> vec2) {
+		double dotProduct = 0.0;
+		double normA = 0.0;
+		double normB = 0.0;
+
+		for (int i = 0; i < vec1.size(); i++) {
+			dotProduct += vec1.get(i) * vec2.get(i);
+			normA += Math.pow(vec1.get(i), 2);
+			normB += Math.pow(vec2.get(i), 2);
+		}
+
+		if (normA == 0 || normB == 0) return 0.0;
+		return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+	}
+
 
 }

@@ -1,15 +1,19 @@
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\entity\Page.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\service\GeminiService.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\CraftSpaceApplication.java
+C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\dto\GraphNode.java
+C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\dto\GraphEdge.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\service\WorkspaceService.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\exception\ResourceNotFoundException.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\dto\auth\SignupRequest.java
+C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\dto\ChangePasswordRequest.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\dto\page\PageResponse.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\service\impl\UserServiceImpl.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\repository\TextChunkEmbeddingRepositoryCustomImpl.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\security\CustomUserDetailsService.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\security\CurrentUser.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\security\JwtTokenProvider.java
+C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\dto\KnowledgeGraphResponse.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\repository\OtpVerificationRepository.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\repository\TextChunkEmbeddingRepositoryCustom.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\repository\TextChunkEmbeddingRepository.java
@@ -33,6 +37,7 @@ C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\controller\Us
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\entity\User.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\entity\Workspace.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\dto\workspace\WorkspaceResponse.java
+C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\service\KnowledgeGraphBuilderService.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\service\EmailService.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\entity\OtpVerification.java
 C:\Users\Admin\Desktop\craft_space\Backend\src\main\java\com\notus\security\UserPrincipal.java
