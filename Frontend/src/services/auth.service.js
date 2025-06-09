@@ -16,7 +16,7 @@ class AuthService {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        withCredentials: true
+        // withCredentials: true
       });
       
       console.log('AuthService: Login response received', { 

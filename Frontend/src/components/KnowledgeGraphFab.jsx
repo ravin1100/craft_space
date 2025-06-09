@@ -30,14 +30,14 @@ export default function KnowledgeGraphFab() {
       const token = localStorage.getItem('notion_token');
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
       // 1. POST to upload
-      const uploadRes = await fetch('http://localhost:8080/api/ai/upload', {
+      const uploadRes = await fetch('https://rpi.truexplainer.com/api/ai/upload', {
         method: 'POST',
         headers,
       });
       if (!uploadRes.ok) throw new Error('Upload failed');
       // toast.success('Data uploaded successfully');
       // 2. GET the graph
-      const graphRes = await fetch(`http://localhost:8080/api/ai/graph?workspaceId=${workspaceId}`, {
+      const graphRes = await fetch(`https://rpi.truexplainer.com/api/ai/graph?workspaceId=${workspaceId}`, {
         method: 'GET',
         headers,
       });

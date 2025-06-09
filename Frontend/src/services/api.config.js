@@ -3,12 +3,12 @@ import { toast } from 'react-hot-toast';
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api', // Directly point to backend server
+  baseURL: 'https://rpi.truexplainer.com/api', // Directly point to backend server
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
-  withCredentials: true, // Important for cookies/auth
+  // withCredentials: true, // Important for cookies/auth
   xsrfCookieName: 'XSRF-TOKEN',
   xsrfHeaderName: 'X-XSRF-TOKEN'
 });
