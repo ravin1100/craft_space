@@ -45,8 +45,8 @@ class SmartService {
    */
   async generateTags(workspaceId, content) {
     try {
-      const response = await api.post(`/workspaces/${workspaceId}/smart/generate-tags`, { content });
-      return response.data;
+      // const response = await api.post(`/workspaces/${workspaceId}/smart/generate-tags`, { content });
+      // return response.data;
     } catch (error) {
       console.error('Error generating tags:', error);
       throw error;
